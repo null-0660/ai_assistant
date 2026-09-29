@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Легион — Аватар</title>
+    <style>
+        /* ═══════════════════════════════════════════════════════
+           ПЕРЕМЕННЫЕ
+           ═══════════════════════════════════════════════════════ */
+        :root {
+            --bg-1: #06060c;
+            --bg-2: #0d0d18;
+
+            /* Цвета состояний */
+            --c-idle:    #00e5ff;
+            --c-listen:  #00ffa2;
+            --c-speak:   #ff2d78;
+            --c-think:   #b070ff;
+
+            /* Свечения */
+            --g-idle:   rgba(0, 229, 255, 0.45);
+            --g-listen: rgba(0, 255, 162, 0.55);
+            --g-speak:  rgba(255, 45, 120, 0.65);
+            --g-think:  rgba(176, 112, 255, 0.55);
+
+            /* Скорости (базовый период) */
+            --s-idle:   10s;
+            --s-listen: 4s;
+            --s-speak:  2s;
+            --s-think:  6s;
+
+            /* Масштаб контейнера */
+            --scale-idle:   1;
+            --scale-listen: 1.06;
+            --scale-speak:  1.14;
+            --scale-think:  1.03;
+
+            /* Активные значения (меняются через класс) */
+            --c: var(--c-idle);
+            --g: var(--g-idle);
+            --s: var(--s-idle);
+            --scale: var(--scale-idle);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            background:
+                radial-gradient(circle at 50% 45%, var(--bg-2) 0%, var(--bg-1) 70%);
+            overflow: hidden;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            color: #fff;
+        }
+
+        /* ═══════════════════════════════════════════════════════
+           КОНТЕЙНЕР АВАТАРА
+           ═══════════════════════════════════════════════════════ */
+        #avatar {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            width: 340px;
+            height: 340px;
+            transform: translate(-50%, -50%) scale(var(--scale));
+            transition:
+                transform 1.2s cubic-bezier(0.22, 1, 0.36, 1),
+                --c 0.9s ease,
+                --g 0.9s ease,
+                --s 0.9s ease;
+            will-change: transform;
+        }
+
+        /* Состояния */
+        #avatar.state-idle {
+            --c: var(--c-idle);
+            --g: var(--g-idle);
+            --s: var(--s-idle);
+            --scale: var(--scale-idle);
+        }
+        #avatar.state-listening {
+            --c: var(--c-listen);
+            --g: var(--g-listen);
+            --s: var(--s-listen);
+            --scale: var(--scale-listen);
+        }
+        #avatar.state-speaking {
+            --c: var(--c-speak);
+            --g: var(--g-speak);
+            --s: var(--s-speak);
+            --scale: var(--scale-speak);
+        }
+        #avatar.state-thinking {
+            --c: var(--c-think);
+            --g: var(--g-think);
+            --s: var(--s-think);
+            --scale: var(--scale-think);
+        }
+
+        /* ═══════════════════════════════════════════════════════
+           ФОНОВОЕ СВЕЧЕНИЕ (дышит вместе с ядром)
+           ═══════════════════════════════════════════════════════ */
+        #avatar::before {
+            content: '';
+            position: absolute;
+            inset: -120px;
+            border-radius: 50%;
+            background: radial-gradient(circle, var(--g) 0%, transparent 60%);
+            filter: blur(40px);
+            opacity: 0.7;
+            animation: breathe calc(var(--s) / 2) ease-in-out infinite;
+            transition: background 0.9s ease;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* ═══════════════════════════════════════════════════════
+           ОРБИТЫ
+           ═══════════════════════════════════════════════════════ */
+        .orbit {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            border-radius: 50%;
+            transform-origin: center;
+            pointer-events: none;
+        }
+
+        /* Внешнее тонкое кольцо — пунктир */
+        .orbit-outer {
+            width: 320px;
+            height: 320px;
+            margin: -160px 0 0 -160px;
+            border: 1px dashed rgba(255, 255, 255, 0.09);
+            animation: spin calc(var(--s) * 4) linear infinite;
+        }
+
+        /* Среднее кольцо — секторы */
+        .orbit-mid {
+            width: 250px;
+            height: 250px;
+            margin: -125px 0 0 -125px;
+            border: 2px solid transparent;
+            border-top-color: var(--c);
+            border-bottom-color: var(--c);
+            opacity: 0.55;
+            filter: drop-shadow(0 0 6px var(--c));
+            animation: spin calc(var(--s) * 1.6) linear infinite;
+            transition:
+                border-color 0.9s ease,
+                filter 0.9s ease,
+                opacity 0.9s ease;
+        }
+
+        /* Внутреннее кольцо — плотное, быстрое */
+        .orbit-inner {
+            width: 190px;
+            height: 190px;
+            margin: -95px 0 0 -95px;
+            border: 2px solid transparent;
+            border-left-color: var(--c);
+            border-right-color: var(--c);
+            filter: drop-shadow(0 0 10px var(--c));
+            animation: spin-reverse calc(var(--s) * 0.9) linear infinite;
+            transition:
+                border-color 0.9s ease,
+                filter 0.9s ease;
+        }
+
+        /* Обратное вращение для разнообразия */
+        #avatar.state-listening .orbit-inner { animation-duration: calc(var(--s) * 0.5); }
+        #avatar.state-speaking  .orbit-inner { animation-duration: calc(var(--s) * 0.35); }
+
+        /* ═══════════════════════════════════════════════════════
+           ЛУЧИ (нейронные связи)
+           ═══════════════════════════════════════════════════════ */
+        .rays {
+            position: absolute;
+            inset: 0;
+            animation: spin calc(var(--s) * 2.5) linear infinite;
+            opacity: 0.35;
+            transition: opacity 0.9s ease;
+        }
+
+        .ray {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 2px;
+            height: 140px;
+            margin-left: -1px;
+            margin-top: -140px;
+            background: linear-gradient(
+                to top,
+                transparent 0%,
+                var(--c) 50%,
+                transparent 100%
+            );
+            transform-origin: bottom center;
+            border-radius: 2px;
+            transition: background 0.9s ease;
+        }
+
+        .ray:nth-child(1) { transform: rotate(0deg); }
+        .ray:nth-child(2) { transform: rotate(60deg); }
+        .ray:nth-child(3) { transform: rotate(120deg); }
+        .ray:nth-child(4) { transform: rotate(180deg); }
+        .ray:nth-child(5) { transform: rotate(240deg); }
+        .ray:nth-child(6) { transform: rotate(300deg); }
+
+        #avatar.state-listening .rays { opacity: 0.6; }
+        #avatar.state-speaking  .rays { opacity: 0.85; }
+
+        /* ═══════════════════════════════════════════════════════
+           ЧАСТИЦЫ
+           ═══════════════════════════════════════════════════════ */
+        .particles {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+        }
+
+        .particle {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 8px;
+            height: 8px;
+            margin: -4px 0 0 -4px;
+            border-radius: 50%;
+            background: #fff;
+            box-shadow:
+                0 0 8px 2px var(--c),
+                0 0 20px 4px var(--g);
+            transition:
+                box-shadow 0.9s ease,
+                background 0.9s ease;
+        }
+
+        /* Три частицы на разных орбитах с разными скоростями */
+        .p1 {
+            --radius: 160px;
+            animation: orbit-cw calc(var(--s) * 2) linear infinite;
+        }
+        .p2 {
+            --radius: 130px;
+            width: 6px;
+            height: 6px;
+            margin: -3px 0 0 -3px;
+            animation: orbit-ccw calc(var(--s) * 1.4) linear infinite;
+        }
+        .p3 {
+            --radius: 100px;
+            width: 4px;
+            height: 4px;
+            margin: -2px 0 0 -2px;
+            animation: orbit-cw calc(var(--s) * 0.9) linear infinite;
+        }
+
+        /* ═══════════════════════════════════════════════════════
+           ЯДРО
+           ═══════════════════════════════════════════════════════ */
+        .core {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 120px;
+            height: 120px;
+            margin: -60px 0 0 -60px;
+            border-radius: 50%;
+            background:
+                radial-gradient(circle at 50% 50%,
+                    #ffffff 0%,
+                    var(--c) 35%,
+                    transparent 75%);
+            box-shadow:
+                0 0 30px var(--g),
+                0 0 60px var(--g),
+                inset 0 0 20px rgba(255, 255, 255, 0.6);
+            animation: core-pulse calc(var(--s) / 2) ease-in-out infinite;
+            transition:
+                background 0.9s ease,
+                box-shadow 0.9s ease;
+            will-change: transform;
+            z-index: 5;
+        }
+
+        /* Внутренний блик ядра */
+        .core::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 45%;
+            height: 45%;
+            margin: -22.5% 0 0 -22.5%;
+            border-radius: 50%;
+            background: #fff;
+            filter: blur(10px);
+            opacity: 0.9;
+            transition:
+                opacity 0.9s ease,
+                width 0.9s ease,
+                height 0.9s ease,
+                filter 0.9s ease;
+        }
+
+        #avatar.state-speaking .core::after {
+            width: 55%;
+            height: 55%;
+            margin: -27.5% 0 0 -27.5%;
+            filter: blur(14px);
+            opacity: 1;
+        }
+
+        #avatar.state-listening .core::after {
+            filter: blur(12px);
+            opacity: 0.95;
+        }
+
+        /* ═══════════════════════════════════════════════════════
+           ЭФФЕКТ: ЗВУКОВЫЕ ВОЛНЫ (только speaking)
+           ═══════════════════════════════════════════════════════ */
+        .wave {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 140px;
+            height: 140px;
+            margin: -70px 0 0 -70px;
+            border-radius: 50%;
+            border: 2px solid var(--c);
+            opacity: 0;
+            pointer-events: none;
+            transition: border-color 0.9s ease;
+            z-index: 1;
+        }
+
+        #avatar.state-speaking .wave {
+            animation: wave-expand var(--s) cubic-bezier(0.2, 0.6, 0.4, 1) infinite;
+        }
+        #avatar.state-speaking .wave:nth-child(2) { animation-delay: calc(var(--s) / 3); }
+        #avatar.state-speaking .wave:nth-child(3) { animation-delay: calc(var(--s) * 2 / 3); }
+
+        /* ═══════════════════════════════════════════════════════
+           ЭФФЕКТ: РАДАР (только listening)
+           ═══════════════════════════════════════════════════════ */
+        .scanner {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 300px;
+            height: 300px;
+            margin: -150px 0 0 -150px;
+            border-radius: 50%;
+            background: conic-gradient(
+                from 0deg,
+                transparent 0deg,
+                transparent 300deg,
+                var(--g) 360deg
+            );
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.9s ease;
+            z-index: 1;
+        }
+
+        #avatar.state-listening .scanner {
+            opacity: 0.6;
+            animation: spin calc(var(--s) * 1.2) linear infinite;
+        }
+
+        /* ═══════════════════════════════════════════════════════
+           ТЕКСТ СТАТУСА
+           ═══════════════════════════════════════════════════════ */
+        #status {
+            position: fixed;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 15px;
+            letter-spacing: 0.5px;
+            color: rgba(255, 255, 255, 0.7);
+            text-align: center;
+            max-width: 70%;
+            opacity: 0;
+            transition: opacity 0.5s ease;
+            pointer-events: none;
+            text-shadow: 0 0 20px var(--g);
+        }
+
+        #status.visible {
+            opacity: 1;
+        }
+
+        /* Индикатор состояния внизу */
+        #indicator {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        #indicator .dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.15);
+            transition: all 0.5s ease;
+        }
+
+        #indicator .dot.active {
+            background: var(--c);
+            box-shadow: 0 0 10px var(--c);
+            width: 20px;
+            border-radius: 3px;
+        }
+
+        /* ═══════════════════════════════════════════════════════
+           АНИМАЦИИ
+           ═══════════════════════════════════════════════════════ */
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        @keyframes spin-reverse {
+            to { transform: rotate(-360deg); }
+        }
+
+        @keyframes core-pulse {
+            0%, 100% { transform: scale(1); }
+            50%      { transform: scale(1.06); }
+        }
+
+        @keyframes breathe {
+            0%, 100% { opacity: 0.55; }
+            50%      { opacity: 0.85; }
+        }
+
+        @keyframes wave-expand {
+            0%   { transform: scale(0.6);  opacity: 0.9; border-width: 6px; }
+            70%  { opacity: 0.3; }
+            100% { transform: scale(2.2);  opacity: 0;   border-width: 1px; }
+        }
+
+        @keyframes orbit-cw {
+            from { transform: rotate(0deg) translateX(var(--radius)) rotate(0deg); }
+            to   { transform: rotate(360deg) translateX(var(--radius)) rotate(-360deg); }
+        }
+        @keyframes orbit-ccw {
+            from { transform: rotate(0deg) translateX(var(--radius)) rotate(0deg); }
+            to   { transform: rotate(-360deg) translateX(var(--radius)) rotate(360deg); }
+        }
+
+        /* ═══════════════════════════════════════════════════════
+           АДАПТИВ (уменьшение для маленьких экранов)
+           ═══════════════════════════════════════════════════════ */
+        @media (max-width: 600px) {
+            #avatar { width: 260px; height: 260px; }
+            .orbit-outer { width: 240px; height: 240px; margin: -120px 0 0 -120px; }
+            .orbit-mid   { width: 190px; height: 190px; margin: -95px 0 0 -95px; }
+            .orbit-inner { width: 140px; height: 140px; margin: -70px 0 0 -70px; }
+            .core { width: 90px; height: 90px; margin: -45px 0 0 -45px; }
+            .ray { height: 110px; margin-top: -110px; }
+            .scanner { width: 220px; height: 220px; margin: -110px 0 0 -110px; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="avatar" class="state-idle">
+        <!-- Звуковые волны (активны при speaking) -->
+        <div class="wave"></div>
+        <div class="wave"></div>
+        <div class="wave"></div>
+
+        <!-- Радар (активен при listening) -->
+        <div class="scanner"></div>
+
+        <!-- Лучи -->
+        <div class="rays">
+            <div class="ray"></div>
+            <div class="ray"></div>
+            <div class="ray"></div>
+            <div class="ray"></div>
+            <div class="ray"></div>
+            <div class="ray"></div>
+        </div>
+
+        <!-- Орбиты -->
+        <div class="orbit orbit-outer"></div>
+        <div class="orbit orbit-mid"></div>
+        <div class="orbit orbit-inner"></div>
+
+        <!-- Частицы -->
+        <div class="particles">
+            <div class="particle p1"></div>
+            <div class="particle p2"></div>
+            <div class="particle p3"></div>
+        </div>
+
+        <!-- Ядро -->
+        <div class="core"></div>
+    </div>
+
+    <!-- Статус -->
+    <div id="status"></div>
+
+    <!-- Индикатор состояния -->
+    <div id="indicator">
+        <div class="dot" data-state="idle"></div>
+        <div class="dot" data-state="listening"></div>
+        <div class="dot" data-state="thinking"></div>
+        <div class="dot" data-state="speaking"></div>
+    </div>
+
+    <script>
+        // ═══════════════════════════════════════════════════════
+        // УПРАВЛЕНИЕ СОСТОЯНИЕМ АВАТАРА
+        // ═══════════════════════════════════════════════════════
+        const avatar    = document.getElementById('avatar');
+        const statusEl  = document.getElementById('status');
+        const dots      = document.querySelectorAll('#indicator .dot');
+
+        let currentState = 'idle';
+        let currentText  = '';
+        let lastPollKey  = '';
+
+        // Маппинг состояний (что приходит из JSON → CSS-класс)
+        const STATE_MAP = {
+            'idle':      'state-idle',
+            'listening': 'state-listening',
+            'speaking':  'state-speaking',
+            'thinking':  'state-thinking',
+            // синонимы
+            'listen':    'state-listening',
+            'speak':     'state-speaking',
+            'think':     'state-thinking',
+        };
+
+        function applyState(state, text) {
+            const cssClass = STATE_MAP[state] || 'state-idle';
+
+            // Меняем класс только если он реально изменился
+            if (avatar.className !== cssClass) {
+                avatar.className = cssClass;
+            }
+
+            // Обновляем текст (только если изменился)
+            if (text !== currentText) {
+                currentText = text;
+                if (text) {
+                    statusEl.textContent = text;
+                    statusEl.classList.add('visible');
+                } else {
+                    statusEl.classList.remove('visible');
+                }
+            }
+
+            // Обновляем активную точку индикатора
+            dots.forEach(d => {
+                const isActive = d.dataset.state === state;
+                d.classList.toggle('active', isActive);
+            });
+
+            currentState = state;
+        }
+
+        // ═══════════════════════════════════════════════════════
+        // ПОЛЛИНГ СОСТОЯНИЯ
+        // ═══════════════════════════════════════════════════════
+        async function poll() {
+            try {
+                const res = await fetch('avatar_state.json?t=' + Date.now(), {
+                    cache: 'no-store'
+                });
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+
+                const data = await res.json();
+                const state = data.state || 'idle';
+                const text  = data.text  || '';
+
+                // Проверяем, изменилось ли что-то
+                const key = state + '|' + text;
+                if (key !== lastPollKey) {
+                    lastPollKey = key;
+                    applyState(state, text);
+                }
+            } catch (e) {
+                // Тихий фейл — аватар продолжает крутиться
+            }
+            setTimeout(poll, 200);
+        }
+
+        // Плавный старт
+        window.addEventListener('load', () => {
+            applyState('idle', '');
+            poll();
+        });
+
+        // ═══════════════════════════════════════════════════════
+        // КЛАВИАТУРНЫЕ ШОРТКАТЫ (для отладки)
+        // ═══════════════════════════════════════════════════════
+        document.addEventListener('keydown', (e) => {
+            if (e.key === '1') applyState('idle', '');
+            if (e.key === '2') applyState('listening', 'Слушаю...');
+            if (e.key === '3') applyState('thinking', 'Думаю...');
+            if (e.key === '4') applyState('speaking', 'Говорю...');
+        });
+    </script>
+</body>
+</html>
