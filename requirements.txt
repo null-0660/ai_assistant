@@ -1,0 +1,10 @@
+sounddevice
+vosk
+torch
+numpy
+scipy
+openai
+pyautogui
+psutil
+screen-brightness-control
+PyYAML

@@ -19,10 +19,11 @@ assets/avatar_state.json
 assets/avatar_state.json.tmp
 
 # ─── Логи ─────────────────────────────────────
+log
 log/
 logs/
+logs/
 *.log
-*.txt
 
 # ─── Python ───────────────────────────────────
 __pycache__/
