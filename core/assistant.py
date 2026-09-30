@@ -1,12 +1,10 @@
 """
-Главный ассистент ЛЕГИОН v4.4
-Исправления:
-- Echo-защита: сравниваем распознанное с последними TTS-фразами
-- Fallback прерывания: если последнее слово — "стоп"/"хватит" и т.п.
-- Игнор всего в течение 2 сек после TTS (эхо-хвост)
-- max_tokens=120 — короткие ответы
-- Прерванные ответы НЕ сохраняются в память
-- Жёсткая нормализация ролей в DialogueManager
+Главный ассистент ЛЕГИОН v4.5
+Новое:
+- Команда выхода работает ВСЕГДА (во время речи и в тишине)
+- Fallback по последнему слову для выхода
+- Echo-защита с логами
+- Убрано зависание при выходе
 """
 import os
 import re
@@ -46,7 +44,7 @@ class LegionAssistant:
         torch.set_num_threads(cfg.assistant.torch_threads)
         device = torch.device("cpu")
 
-        # TTS с callback для echo-защиты
+        # TTS
         self.tts = TTSEngine(
             model_file=cfg.tts.model_file,
             device=device,
@@ -131,29 +129,87 @@ class LegionAssistant:
         if not candidates:
             return False
 
-        # 1. Прямое вхождение подстроки
+        # 1. Прямое вхождение
         for t in candidates:
             if p in t or t in p:
-                log.debug(f"🔇 Эхо (вхождение): '{p[:40]}' ⊂ '{t[:40]}'")
+                log.info(f"🔇 Эхо (вхождение): '{p[:40]}'")
                 return True
 
-        # 2. Похожесть через SequenceMatcher
+        # 2. SequenceMatcher
         for t in candidates:
             ratio = SequenceMatcher(None, p, t).ratio()
             if ratio > threshold:
-                log.debug(f"🔇 Эхо (ratio={ratio:.2f}): '{p[:40]}'")
+                log.info(f"🔇 Эхо (ratio={ratio:.2f}): '{p[:40]}'")
                 return True
 
-        # 3. Совпадение по словам (2+ слова из фразы есть в TTS)
+        # 3. Совпадение по словам (2+)
         p_words = set(p.split())
         for t in candidates:
             t_words = set(t.split())
             overlap = p_words & t_words
-            if len(overlap) >= 3:
-                log.debug(f"🔇 Эхо (слов {len(overlap)}): '{p[:40]}'")
+            if len(overlap) >= 2:
+                log.info(f"🔇 Эхо (слов {len(overlap)}): '{p[:40]}'")
                 return True
 
         return False
+
+    # ═════════════════════════════════════════════
+    # ПРОВЕРКИ
+    # ═════════════════════════════════════════════
+    def _is_noise(self, phrase: str) -> bool:
+        stripped = phrase.strip()
+        allowed = {"да", "нет", "а", "всё", "все", "стоп", "ок", "окей"}
+        return len(stripped) <= 2 and stripped not in allowed
+
+    def _is_interrupt(self, phrase: str) -> bool:
+        """Прерывание: вхождение или последнее слово."""
+        if any(ip in phrase for ip in self.cfg.assistant.interrupt_phrases):
+            return True
+        words = phrase.split()
+        if words and words[-1] in self.cfg.assistant.interrupt_phrases:
+            return True
+        return False
+
+    def _is_exit(self, phrase: str) -> bool:
+        """
+        Выход: точное совпадение, вхождение, или последнее слово.
+        """
+        if phrase in self.cfg.assistant.exit_phrases:
+            return True
+        for ep in self.cfg.assistant.exit_phrases:
+            if ep in phrase:
+                return True
+        words = phrase.split()
+        if words and words[-1] in self.cfg.assistant.exit_phrases:
+            return True
+        return False
+
+    # ═════════════════════════════════════════════
+    # ВЫХОД
+    # ═════════════════════════════════════════════
+    def _do_exit(self, phrase: str, during_speech: bool = False) -> None:
+        """Корректный выход из программы."""
+        label = "во время речи" if during_speech else "в тишине"
+        log.info(f"🚪 Выход ({label}): '{phrase}'")
+
+        # Если TTS говорит — прерываем
+        if self.tts.is_speaking:
+            self.tts.interrupt()
+            time.sleep(0.3)
+
+        self._write_avatar_state("idle", "Выключение")
+
+        # Прощальная фраза
+        try:
+            self.tts.speak(
+                "Легион уходит. До встречи.",
+                speaker=self.commands.current_voice,
+            )
+        except Exception:
+            pass
+
+        time.sleep(0.4)
+        self._stop_event.set()
 
     # ═════════════════════════════════════════════
     # STT CALLBACK
@@ -166,20 +222,16 @@ class LegionAssistant:
         if not phrase_lower:
             return
 
-        # ─────────────────────────────────────────
+        # ═══════════════════════════════════════════
         # РЕЖИМ 1: TTS говорит
-        # ─────────────────────────────────────────
+        # ═══════════════════════════════════════════
         if self.tts.is_speaking:
-            # 1a. Выход
-            if phrase_lower in self.cfg.assistant.exit_phrases:
-                log.info(f"🚪 Выход во время речи: '{phrase}'")
-                self.tts.interrupt()
-                time.sleep(0.4)
-                self.tts.speak("Легион уходит.", speaker=self.commands.current_voice)
-                self._stop_event.set()
+            # 1a. Выход — РАБОТАЕТ ВСЕГДА
+            if self._is_exit(phrase_lower):
+                self._do_exit(phrase, during_speech=True)
                 return
 
-            # 1b. Прерывание
+            # 1b. Прерывание речи
             if self._is_interrupt(phrase_lower):
                 log.info(f"🛑 Прерывание: '{phrase}'")
                 self.tts.interrupt()
@@ -190,38 +242,31 @@ class LegionAssistant:
             log.debug(f"🔇 Игнор во время речи: '{phrase}'")
             return
 
-        # ─────────────────────────────────────────
+        # ═══════════════════════════════════════════
         # РЕЖИМ 2: TTS молчит
-        # ─────────────────────────────────────────
+        # ═══════════════════════════════════════════
 
-        # 2a. Недавно был TTS (< 2.5 сек) — это эхо-хвост
+        # 2a. Выход — ПЕРВЫМ ДЕЛОМ
+        if self._is_exit(phrase_lower):
+            self._do_exit(phrase, during_speech=False)
+            return
+
+        # 2b. Недавно был TTS (< 5 сек) — эхо-хвост
         time_since_tts = time.time() - self._last_tts_end_time
-        if time_since_tts < 2.5:
-            # Но если это явное прерывание — реагируем
+        if time_since_tts < 5.0:
             if self._is_interrupt(phrase_lower):
                 log.info(f"🛑 Прерывание (после TTS): '{phrase}'")
                 self.tts.speak("Молчу.", speaker=self.commands.current_voice)
                 return
-            log.debug(
-                f"🔇 Игнор ({time_since_tts:.1f}с после TTS): '{phrase[:40]}'"
-            )
+            log.info(f"🔇 Игнор ({time_since_tts:.1f}с после TTS): '{phrase[:40]}'")
             return
 
-        # 2b. Похоже на недавний TTS-текст → эхо
+        # 2c. Похоже на недавний TTS → эхо
         if self._is_echo(phrase_lower):
             return
 
-        # 2c. Шум
+        # 2d. Шум
         if self._is_noise(phrase_lower):
-            return
-
-        # 2d. Выход
-        if phrase_lower in self.cfg.assistant.exit_phrases:
-            self.tts.speak(
-                "Легион уходит. До встречи.",
-                speaker=self.commands.current_voice,
-            )
-            self._stop_event.set()
             return
 
         # 2e. Прерывание, когда и так молчим
@@ -237,26 +282,6 @@ class LegionAssistant:
                 self._ask_ai(phrase)
         finally:
             self._write_avatar_state("idle", "Слушаю")
-
-    def _is_noise(self, phrase: str) -> bool:
-        stripped = phrase.strip()
-        allowed = {"да", "нет", "а", "всё", "все", "стоп", "ок", "окей"}
-        return len(stripped) <= 2 and stripped not in allowed
-
-    def _is_interrupt(self, phrase: str) -> bool:
-        """Прерывание: вхождение ИЛИ последнее слово."""
-        # Вхождение где угодно
-        if any(ip in phrase for ip in self.cfg.assistant.interrupt_phrases):
-            return True
-
-        # Fallback: последнее слово = команда прерывания
-        words = phrase.split()
-        if words:
-            last = words[-1]
-            if last in self.cfg.assistant.interrupt_phrases:
-                return True
-
-        return False
 
     # ═════════════════════════════════════════════
     # ИИ
@@ -359,6 +384,8 @@ class LegionAssistant:
     def _idle_loop(self) -> None:
         while not self._stop_event.is_set():
             time.sleep(5)
+            if self._stop_event.is_set():
+                break
             if (
                 not self.tts.is_speaking
                 and time.time() - self._last_speech_time
@@ -396,7 +423,7 @@ class LegionAssistant:
     # ЗАПУСК
     # ═════════════════════════════════════════════
     def run(self) -> None:
-        log.info("🤖 ЛЕГИОН v4.4 (echo-защита + fallback прерывания) запущен!")
+        log.info("🤖 ЛЕГИОН v4.5 (выход работает всегда) запущен!")
         self._launch_avatar()
         self._write_avatar_state("idle", "Запуск систем...")
 
@@ -415,17 +442,34 @@ class LegionAssistant:
 
         try:
             while not self._stop_event.is_set():
-                time.sleep(0.5)
+                time.sleep(0.3)
         except KeyboardInterrupt:
             log.info("Ctrl+C — завершение.")
         finally:
-            self._stop_event.set()
-            try:
-                self.stt.stop()
-            except Exception:
-                pass
-            try:
-                self._avatar_server.stop()
-            except Exception:
-                pass
-            log.info("ЛЕГИОН остановлен.")
+            self._shutdown()
+
+    def _shutdown(self) -> None:
+        """Корректное завершение без зависаний."""
+        log.info("Завершение работы...")
+        self._stop_event.set()
+
+        # Пытаемся остановить TTS
+        try:
+            if self.tts.is_speaking:
+                self.tts.interrupt()
+        except Exception:
+            pass
+
+        # STT — быстрое отключение
+        try:
+            self.stt.stop()
+        except Exception as e:
+            log.debug(f"Ошибка остановки STT: {e}")
+
+        # Avatar server
+        try:
+            self._avatar_server.stop()
+        except Exception as e:
+            log.debug(f"Ошибка остановки аватара: {e}")
+
+        log.info("ЛЕГИОН остановлен.")

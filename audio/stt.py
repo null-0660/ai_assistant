@@ -1,5 +1,6 @@
 """
 Улучшенный слух: Vosk + VAD + шумодав + нормализация + confidence.
+Без join() в stop() — чтобы не зависало при выходе.
 """
 import json
 import queue
@@ -91,6 +92,7 @@ class STTEngine:
         log.info("STT запущен (слушаю).")
 
     def stop(self) -> None:
+        """Мгновенное отключение — без join()."""
         self._stop.set()
         if self._stream is not None:
             try:
@@ -99,7 +101,7 @@ class STTEngine:
             except Exception:
                 pass
             self._stream = None
-        # Не ждём поток — просто выходим
+        # НЕ вызываем join — daemon-поток завершится сам
         log.info("STT остановлен.")
 
     def pause(self) -> None:
@@ -119,7 +121,10 @@ class STTEngine:
     def _audio_callback(self, indata, frames, time_info, status) -> None:
         if self._stop.is_set() or self._paused.is_set():
             return
-        self._audio_queue.put(bytes(indata))
+        try:
+            self._audio_queue.put_nowait(bytes(indata))
+        except queue.Full:
+            pass
 
     def _preprocess(self, pcm_bytes: bytes) -> np.ndarray:
         audio = pcm_bytes_to_float32(pcm_bytes)
@@ -132,41 +137,47 @@ class STTEngine:
     def _process_loop(self) -> None:
         while not self._stop.is_set():
             try:
-                pcm_bytes = self._audio_queue.get(timeout=0.5)
+                pcm_bytes = self._audio_queue.get(timeout=0.3)
             except queue.Empty:
                 continue
+
+            if self._stop.is_set():
+                break
 
             if self._paused.is_set():
                 continue
 
-            audio = self._preprocess(pcm_bytes)
-            has_speech = (
-                is_speech(audio, self.vad_energy_threshold_norm)
-                if self.vad_enabled
-                else True
-            )
+            try:
+                audio = self._preprocess(pcm_bytes)
+                has_speech = (
+                    is_speech(audio, self.vad_energy_threshold_norm)
+                    if self.vad_enabled
+                    else True
+                )
 
-            if self.vad_enabled:
-                if has_speech:
-                    self._silence_counter = 0
-                    self._speech_started = True
-                else:
-                    if self._speech_started:
-                        self._silence_counter += 1
-                    if (
-                        self._speech_started
-                        and self._silence_counter >= self.vad_silence_frames
-                    ):
-                        self._flush_recognizer()
-                        self._speech_started = False
+                if self.vad_enabled:
+                    if has_speech:
                         self._silence_counter = 0
-                        continue
-                    if not self._speech_started:
-                        continue
+                        self._speech_started = True
+                    else:
+                        if self._speech_started:
+                            self._silence_counter += 1
+                        if (
+                            self._speech_started
+                            and self._silence_counter >= self.vad_silence_frames
+                        ):
+                            self._flush_recognizer()
+                            self._speech_started = False
+                            self._silence_counter = 0
+                            continue
+                        if not self._speech_started:
+                            continue
 
-            processed_bytes = float32_to_pcm_bytes(audio)
-            if self.recognizer.AcceptWaveform(processed_bytes):
-                self._handle_result(self.recognizer.Result())
+                processed_bytes = float32_to_pcm_bytes(audio)
+                if self.recognizer.AcceptWaveform(processed_bytes):
+                    self._handle_result(self.recognizer.Result())
+            except Exception as e:
+                log.debug(f"STT loop error: {e}")
 
     def _flush_recognizer(self) -> None:
         try:
