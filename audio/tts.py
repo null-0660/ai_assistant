@@ -1,5 +1,6 @@
 """
 Улучшенный TTS: разбивка на предложения, паузы, вариация скорости, кэш.
+ECHO-ЗАЩИТА: вызывает on_speak callback для каждой произнесённой фразы.
 """
 import re
 import time
@@ -7,7 +8,7 @@ import random
 import hashlib
 import threading
 from collections import OrderedDict
-from typing import Optional
+from typing import Optional, Callable
 
 import numpy as np
 import sounddevice as sd
@@ -23,13 +24,6 @@ except ImportError:
 
 
 class TTSEngine:
-    """
-    Silero TTS с:
-    - прерыванием речи
-    - разбивкой длинного текста на предложения (пауза между ними)
-    - лёгкой вариацией скорости
-    - LRU-кэшем синтеза
-    """
 
     def __init__(
         self,
@@ -39,11 +33,13 @@ class TTSEngine:
         sentence_pause_ms: int = 120,
         speed_variation: float = 0.04,
         cache_size: int = 32,
+        on_speak: Optional[Callable[[str], None]] = None,
     ):
         self.sample_rate = sample_rate
         self.sentence_pause_ms = sentence_pause_ms
         self.speed_variation = speed_variation
         self.cache_size = cache_size
+        self.on_speak = on_speak
 
         self._speaking = False
         self._interrupt = threading.Event()
@@ -57,7 +53,6 @@ class TTSEngine:
         self.model.to(device)
         log.info("Голос Silero загружен.")
 
-    # ── Свойства ───────────────────────────────────
     @property
     def is_speaking(self) -> bool:
         return self._speaking
@@ -66,14 +61,12 @@ class TTSEngine:
     def interrupt_requested(self) -> bool:
         return self._interrupt.is_set()
 
-    # ── Прерывание ─────────────────────────────────
     def interrupt(self) -> None:
         if self._speaking:
             self._interrupt.set()
             sd.stop()
             log.info("Речь прервана.")
 
-    # ── Синтез ─────────────────────────────────────
     def _clean_text(self, text: str) -> str:
         text = re.sub(r'[*_#`\n]', ' ', text)
         text = re.sub(r'\s+', ' ', text)
@@ -115,11 +108,8 @@ class TTSEngine:
             log.error(f"Ошибка синтеза: {e}")
             return None
 
-        # Вариация скорости для живости
         if SCIPY_AVAILABLE and self.speed_variation > 0:
-            factor = 1.0 + random.uniform(
-                -self.speed_variation, self.speed_variation
-            )
+            factor = 1.0 + random.uniform(-self.speed_variation, self.speed_variation)
             new_len = max(1, int(len(audio_np) / factor))
             try:
                 audio_np = scipy_signal.resample(audio_np, new_len).astype(np.float32)
@@ -130,7 +120,6 @@ class TTSEngine:
         return audio_np
 
     def _play_audio(self, audio: np.ndarray) -> bool:
-        """Проигрывает аудио, возвращает False если прервали."""
         if audio is None or len(audio) == 0:
             return True
         sd.play(audio, self.sample_rate)
@@ -150,6 +139,15 @@ class TTSEngine:
             self._interrupt.clear()
             self._speaking = True
             log.info(f"🔊 Легион [{speaker}]: {text}")
+
+            # ── Echo-защита: уведомляем о фразах ДО воспроизведения ──
+            if self.on_speak:
+                try:
+                    for sent in self._split_sentences(text) or [text]:
+                        self.on_speak(sent)
+                except Exception as e:
+                    log.debug(f"on_speak error: {e}")
+
             try:
                 sentences = self._split_sentences(text) or [text]
                 for i, sent in enumerate(sentences):
@@ -160,7 +158,6 @@ class TTSEngine:
                         continue
                     if not self._play_audio(audio):
                         break
-                    # Пауза между предложениями
                     if i < len(sentences) - 1 and self.sentence_pause_ms > 0:
                         pause = self.sentence_pause_ms / 1000.0
                         end = time.time() + pause

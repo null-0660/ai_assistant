@@ -21,10 +21,6 @@ from audio.audio_utils import (
 
 
 class STTEngine:
-    """
-    Обёртка над Vosk с VAD, шумодавом и обработкой confidence.
-    Работает в отдельном потоке и вызывает callback(text, confidence).
-    """
 
     def __init__(
         self,
@@ -42,7 +38,7 @@ class STTEngine:
         command_hints: Optional[list] = None,
         on_text: Optional[Callable[[str, float], None]] = None,
     ):
-        SetLogLevel(-1)  # меньше спама от Vosk
+        SetLogLevel(-1)
 
         self.sample_rate = sample_rate
         self.blocksize = blocksize
@@ -56,11 +52,9 @@ class STTEngine:
         self.min_confidence = min_confidence
         self.on_text = on_text
 
-        # Модель Vosk
         log.info("Загрузка Vosk...")
         self.model = Model(model_path)
 
-        # Грамматика для подсказок (если заданы)
         if command_hints:
             grammar = json.dumps(command_hints + ["[unk]"], ensure_ascii=False)
             self.recognizer = KaldiRecognizer(self.model, sample_rate, grammar)
@@ -69,21 +63,17 @@ class STTEngine:
             self.recognizer = KaldiRecognizer(self.model, sample_rate)
             log.info("Vosk загружен (свободная грамматика).")
 
-        self.recognizer.SetWords(True)  # нужны слова для confidence
+        self.recognizer.SetWords(True)
 
-        # Состояние VAD
         self._silence_counter = 0
         self._speech_started = False
-        self._audio_buffer: list[np.ndarray] = []
 
-        # Потоковая обработка
         self._audio_queue: queue.Queue = queue.Queue()
         self._stop = threading.Event()
         self._stream: Optional[sd.RawInputStream] = None
         self._worker: Optional[threading.Thread] = None
         self._paused = threading.Event()
 
-    # ── Управление ─────────────────────────────────
     def start(self) -> None:
         self._stream = sd.RawInputStream(
             samplerate=self.sample_rate,
@@ -103,15 +93,16 @@ class STTEngine:
     def stop(self) -> None:
         self._stop.set()
         if self._stream is not None:
-            self._stream.stop()
-            self._stream.close()
+            try:
+                self._stream.stop()
+                self._stream.close()
+            except Exception:
+                pass
             self._stream = None
-        if self._worker is not None:
-            self._worker.join(timeout=2)
+        # Не ждём поток — просто выходим
         log.info("STT остановлен.")
 
     def pause(self) -> None:
-        """Приостановить распознавание (например, пока ассистент говорит)."""
         self._paused.set()
 
     def resume(self) -> None:
@@ -119,15 +110,12 @@ class STTEngine:
         self.recognizer.Reset()
         self._silence_counter = 0
         self._speech_started = False
-        self._audio_buffer.clear()
 
     def reset(self) -> None:
         self.recognizer.Reset()
         self._silence_counter = 0
         self._speech_started = False
-        self._audio_buffer.clear()
 
-    # ── Внутреннее ─────────────────────────────────
     def _audio_callback(self, indata, frames, time_info, status) -> None:
         if self._stop.is_set() or self._paused.is_set():
             return
@@ -158,7 +146,6 @@ class STTEngine:
                 else True
             )
 
-            # VAD-логика
             if self.vad_enabled:
                 if has_speech:
                     self._silence_counter = 0
@@ -170,22 +157,18 @@ class STTEngine:
                         self._speech_started
                         and self._silence_counter >= self.vad_silence_frames
                     ):
-                        # Конец фразы — форсируем Result
                         self._flush_recognizer()
                         self._speech_started = False
                         self._silence_counter = 0
                         continue
-                    # Тишина до начала речи — не кормим Vosk
                     if not self._speech_started:
                         continue
 
-            # Кормим Vosk
             processed_bytes = float32_to_pcm_bytes(audio)
             if self.recognizer.AcceptWaveform(processed_bytes):
                 self._handle_result(self.recognizer.Result())
 
     def _flush_recognizer(self) -> None:
-        """Принудительно завершить текущую фразу."""
         try:
             final = self.recognizer.FinalResult()
             self._handle_result(final)
@@ -203,7 +186,6 @@ class STTEngine:
         if not text:
             return
 
-        # Confidence = среднее по словам
         confidence = 1.0
         words = data.get("result") or []
         if words:

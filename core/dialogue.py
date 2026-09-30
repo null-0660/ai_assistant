@@ -1,5 +1,6 @@
 """
 Менеджер диалога с сохранением памяти на диск.
+ГАРАНТИРУЕТ строгое чередование user/assistant — защита от jinja-ошибок.
 """
 import os
 import json
@@ -9,7 +10,6 @@ from core.logger import log
 
 
 class DialogueManager:
-    """Хранит историю, гарантирует строгое чередование user/assistant."""
 
     def __init__(
         self,
@@ -27,7 +27,6 @@ class DialogueManager:
         if self.persist:
             self._load()
 
-    # ── Публичное API ───────────────────────────────
     def add(self, role: str, content: str) -> None:
         if not content or not content.strip():
             return
@@ -48,9 +47,12 @@ class DialogueManager:
         self.history = [{"role": "system", "content": self.system_prompt}]
         self._save()
 
-    # ── Внутреннее ──────────────────────────────────
     def _clean(self) -> None:
-        """Склеивает подряд идущие сообщения одной роли."""
+        """Жёсткая нормализация истории."""
+        if len(self.history) <= 1:
+            return
+
+        # Склеиваем подряд идущие одной роли
         cleaned = [self.history[0]]
         for msg in self.history[1:]:
             content = msg.get("content", "")
@@ -64,18 +66,31 @@ class DialogueManager:
                 cleaned[-1]["content"] += " " + content.strip()
             else:
                 cleaned.append(msg)
-        self.history = cleaned
+
+        # Гарантируем чередование
+        fixed = [cleaned[0]]
+        for msg in cleaned[1:]:
+            if fixed[-1]["role"] == msg["role"]:
+                fixed[-1] = msg
+            else:
+                fixed.append(msg)
+
+        # Убираем ведущие assistant
+        while len(fixed) > 1 and fixed[1]["role"] == "assistant":
+            fixed.pop(1)
+
+        self.history = fixed
 
     def _trim(self) -> None:
         if len(self.history) > self.max_history + 1:
             self.history = [self.history[0]] + self.history[-(self.max_history):]
+            self._clean()
 
     def _save(self) -> None:
         if not self.persist:
             return
         try:
             os.makedirs(os.path.dirname(self.memory_file), exist_ok=True)
-            # Сохраняем без system, только реплики
             data = [m for m in self.history if m["role"] != "system"]
             tmp = self.memory_file + ".tmp"
             with open(tmp, "w", encoding="utf-8") as f:
