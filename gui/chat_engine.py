@@ -1,6 +1,6 @@
 """
 Текстовый чат через LM Studio. Без TTS и STT.
-Автоматически добавляет /no_think для Qwen3, если он в имени модели.
+Быстрые ответы: max_tokens=200, /no_think добавляется в system_prompt.
 """
 import os
 import threading
@@ -53,7 +53,8 @@ class ChatEngine:
                         model=self.cfg.ai.model_name,
                         messages=dialogue.get(),
                         temperature=self.cfg.ai.temperature,
-                        max_tokens=250,          # ↑ для чата (не голос)
+                        top_p=0.9,
+                        max_tokens=250,
                         stream=True,
                         timeout=90,
                     )
