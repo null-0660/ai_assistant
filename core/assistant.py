@@ -5,6 +5,7 @@
 - Fallback по последнему слову для выхода
 - Echo-защита с логами
 - Убрано зависание при выходе
+- Поддержка внешнего avatar_server (для GUI)
 """
 import os
 import re
@@ -30,7 +31,7 @@ from commands.processor import CommandProcessor
 
 class LegionAssistant:
 
-    def __init__(self, cfg: LegionConfig):
+    def __init__(self, cfg: LegionConfig, avatar_server=None):
         self.cfg = cfg
         self._stop_event = threading.Event()
         self._last_speech_time = time.time()
@@ -96,15 +97,21 @@ class LegionAssistant:
             on_text=self._on_stt_text,
         )
 
-        # Аватар
+        # Аватар — внешний (от GUI) или создаём свой
         self._assets_dir = os.path.join(root_dir, "assets")
         os.makedirs(self._assets_dir, exist_ok=True)
         self._avatar_state_file = os.path.join(self._assets_dir, "avatar_state.json")
-        self._avatar_server = AvatarServer(
-            self._assets_dir,
-            host=cfg.avatar.host,
-            port=cfg.avatar.port,
-        )
+
+        if avatar_server is not None:
+            self._avatar_server = avatar_server
+            self._owns_avatar_server = False
+        else:
+            self._avatar_server = AvatarServer(
+                self._assets_dir,
+                host=cfg.avatar.host,
+                port=cfg.avatar.port,
+            )
+            self._owns_avatar_server = True
 
     # ═════════════════════════════════════════════
     # ECHO-ЗАЩИТА
@@ -129,20 +136,17 @@ class LegionAssistant:
         if not candidates:
             return False
 
-        # 1. Прямое вхождение
         for t in candidates:
             if p in t or t in p:
                 log.info(f"🔇 Эхо (вхождение): '{p[:40]}'")
                 return True
 
-        # 2. SequenceMatcher
         for t in candidates:
             ratio = SequenceMatcher(None, p, t).ratio()
             if ratio > threshold:
                 log.info(f"🔇 Эхо (ratio={ratio:.2f}): '{p[:40]}'")
                 return True
 
-        # 3. Совпадение по словам (2+)
         p_words = set(p.split())
         for t in candidates:
             t_words = set(t.split())
@@ -162,7 +166,6 @@ class LegionAssistant:
         return len(stripped) <= 2 and stripped not in allowed
 
     def _is_interrupt(self, phrase: str) -> bool:
-        """Прерывание: вхождение или последнее слово."""
         if any(ip in phrase for ip in self.cfg.assistant.interrupt_phrases):
             return True
         words = phrase.split()
@@ -171,9 +174,6 @@ class LegionAssistant:
         return False
 
     def _is_exit(self, phrase: str) -> bool:
-        """
-        Выход: точное совпадение, вхождение, или последнее слово.
-        """
         if phrase in self.cfg.assistant.exit_phrases:
             return True
         for ep in self.cfg.assistant.exit_phrases:
@@ -192,14 +192,12 @@ class LegionAssistant:
         label = "во время речи" if during_speech else "в тишине"
         log.info(f"🚪 Выход ({label}): '{phrase}'")
 
-        # Если TTS говорит — прерываем
         if self.tts.is_speaking:
             self.tts.interrupt()
             time.sleep(0.3)
 
         self._write_avatar_state("idle", "Выключение")
 
-        # Прощальная фраза
         try:
             self.tts.speak(
                 "Легион уходит. До встречи.",
@@ -226,32 +224,26 @@ class LegionAssistant:
         # РЕЖИМ 1: TTS говорит
         # ═══════════════════════════════════════════
         if self.tts.is_speaking:
-            # 1a. Выход — РАБОТАЕТ ВСЕГДА
             if self._is_exit(phrase_lower):
                 self._do_exit(phrase, during_speech=True)
                 return
 
-            # 1b. Прерывание речи
             if self._is_interrupt(phrase_lower):
                 log.info(f"🛑 Прерывание: '{phrase}'")
                 self.tts.interrupt()
                 self._write_avatar_state("idle", "Прервано")
                 return
 
-            # 1c. Всё остальное — эхо
             log.debug(f"🔇 Игнор во время речи: '{phrase}'")
             return
 
         # ═══════════════════════════════════════════
         # РЕЖИМ 2: TTS молчит
         # ═══════════════════════════════════════════
-
-        # 2a. Выход — ПЕРВЫМ ДЕЛОМ
         if self._is_exit(phrase_lower):
             self._do_exit(phrase, during_speech=False)
             return
 
-        # 2b. Недавно был TTS (< 5 сек) — эхо-хвост
         time_since_tts = time.time() - self._last_tts_end_time
         if time_since_tts < 5.0:
             if self._is_interrupt(phrase_lower):
@@ -261,20 +253,16 @@ class LegionAssistant:
             log.info(f"🔇 Игнор ({time_since_tts:.1f}с после TTS): '{phrase[:40]}'")
             return
 
-        # 2c. Похоже на недавний TTS → эхо
         if self._is_echo(phrase_lower):
             return
 
-        # 2d. Шум
         if self._is_noise(phrase_lower):
             return
 
-        # 2e. Прерывание, когда и так молчим
         if self._is_interrupt(phrase_lower):
             self.tts.speak("Молчу.", speaker=self.commands.current_voice)
             return
 
-        # 2f. Обычная обработка
         self._last_speech_time = time.time()
         self._write_avatar_state("listening", phrase[:40])
         try:
@@ -412,12 +400,14 @@ class LegionAssistant:
     def _launch_avatar(self) -> None:
         if not self.cfg.avatar.enabled:
             return
-        self._avatar_server.start()
-        try:
-            webbrowser.open(self._avatar_server.url)
-            log.info(f"Аватар: {self._avatar_server.url}")
-        except Exception as e:
-            log.warning(f"Не удалось открыть аватар: {e}")
+        # Если сервер внешний (GUI) — он уже запущен
+        if self._owns_avatar_server:
+            self._avatar_server.start()
+            try:
+                webbrowser.open(self._avatar_server.url)
+                log.info(f"Аватар: {self._avatar_server.url}")
+            except Exception as e:
+                log.warning(f"Не удалось открыть аватар: {e}")
 
     # ═════════════════════════════════════════════
     # ЗАПУСК
@@ -453,23 +443,22 @@ class LegionAssistant:
         log.info("Завершение работы...")
         self._stop_event.set()
 
-        # Пытаемся остановить TTS
         try:
             if self.tts.is_speaking:
                 self.tts.interrupt()
         except Exception:
             pass
 
-        # STT — быстрое отключение
         try:
             self.stt.stop()
         except Exception as e:
             log.debug(f"Ошибка остановки STT: {e}")
 
-        # Avatar server
-        try:
-            self._avatar_server.stop()
-        except Exception as e:
-            log.debug(f"Ошибка остановки аватара: {e}")
+        # Стопаем аватар только если он наш
+        if self._owns_avatar_server:
+            try:
+                self._avatar_server.stop()
+            except Exception as e:
+                log.debug(f"Ошибка остановки аватара: {e}")
 
         log.info("ЛЕГИОН остановлен.")
