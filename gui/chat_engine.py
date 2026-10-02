@@ -1,7 +1,8 @@
 """
-Простой текстовый чат через LM Studio. Без TTS, без STT.
-Использует тот же memory.json, что и голосовой ассистент.
+Текстовый чат через LM Studio. Без TTS и STT.
+Автоматически добавляет /no_think для Qwen3, если он в имени модели.
 """
+import os
 import threading
 from typing import Optional, Callable
 
@@ -10,17 +11,16 @@ from openai import OpenAI
 from core.config_loader import LegionConfig
 from core.dialogue import DialogueManager
 from core.logger import log
-import os
 
 
 class ChatEngine:
+
     def __init__(self, cfg: LegionConfig):
         self.cfg = cfg
         self.ai = OpenAI(
             base_url=cfg.ai.lm_studio_url,
             api_key=cfg.ai.lm_studio_key,
         )
-        # Ленивая загрузка диалога
         self._dialogue: Optional[DialogueManager] = None
         self._lock = threading.Lock()
 
@@ -43,7 +43,6 @@ class ChatEngine:
         on_done: Optional[Callable[[str], None]] = None,
         on_error: Optional[Callable[[str], None]] = None,
     ) -> None:
-        """Отправляет запрос. Результат — через callbacks (могут быть из другого потока)."""
 
         def worker():
             with self._lock:
@@ -54,9 +53,9 @@ class ChatEngine:
                         model=self.cfg.ai.model_name,
                         messages=dialogue.get(),
                         temperature=self.cfg.ai.temperature,
-                        max_tokens=300,
+                        max_tokens=250,          # ↑ для чата (не голос)
                         stream=True,
-                        timeout=60,
+                        timeout=90,
                     )
                     full = ""
                     for chunk in response:

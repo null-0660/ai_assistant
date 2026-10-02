@@ -1,9 +1,8 @@
 """
-Главное окно Легиона — tkinter GUI.
-Тёмная тема, минималистичный интерфейс.
+Главное окно Легиона — современный минималистичный GUI.
+Стиль: тёмная тема Deep Ocean, аккуратная типографика, чёткая иерархия.
 """
 import os
-import sys
 import time
 import json
 import queue
@@ -14,29 +13,13 @@ import tkinter as tk
 from tkinter import ttk, font as tkfont
 from typing import Optional
 
-from core.config_loader import LegionConfig, load_config
+from core.config_loader import LegionConfig
 from core.logger import log
 from core.avatar_server import AvatarServer
 from gui.log_handler import QueueLogHandler
 from gui.chat_engine import ChatEngine
+from gui import theme as T
 from core.assistant import LegionAssistant
-
-
-# ═══════════════════════════════════════════════
-# ЦВЕТА (тёмная тема)
-# ═══════════════════════════════════════════════
-BG           = "#1a1a1a"
-PANEL        = "#242424"
-PANEL_2      = "#2d2d2d"
-PANEL_3      = "#343434"
-BORDER       = "#3a3a3a"
-TEXT         = "#e8e8e8"
-TEXT_DIM     = "#888888"
-ACCENT       = "#4a9eff"
-ACCENT_HOVER = "#5aaeff"
-RED          = "#e05252"
-GREEN        = "#4caf50"
-YELLOW       = "#ffb74d"
 
 
 class LegionGUI:
@@ -52,9 +35,9 @@ class LegionGUI:
 
         self.root = tk.Tk()
         self.root.title("Легион — AI Assistant")
-        self.root.geometry("1280x800")
-        self.root.minsize(900, 600)
-        self.root.configure(bg=BG)
+        self.root.geometry(f"{T.WINDOW_W}x{T.WINDOW_H}")
+        self.root.minsize(T.MIN_W, T.MIN_H)
+        self.root.configure(bg=T.BG_ROOT)
 
         self._setup_logging()
         self._setup_fonts()
@@ -70,313 +53,457 @@ class LegionGUI:
     def _setup_logging(self) -> None:
         handler = QueueLogHandler(self.log_queue)
         handler.setFormatter(logging.Formatter(
-            "%(asctime)s [%(levelname)s] %(message)s",
+            "%(asctime)s  %(message)s",
             datefmt="%H:%M:%S",
         ))
         logging.getLogger("ЛЕГИОН").addHandler(handler)
 
     def _setup_fonts(self) -> None:
-        self.font_ui = tkfont.Font(family="Segoe UI", size=11)
-        self.font_ui_bold = tkfont.Font(family="Segoe UI", size=11, weight="bold")
-        self.font_logo = tkfont.Font(family="Segoe UI", size=18, weight="bold")
-        self.font_log = tkfont.Font(family="Consolas", size=9)
-        self.font_chat = tkfont.Font(family="Segoe UI", size=11)
+        # UI-шрифты
+        self.f_logo      = tkfont.Font(family=T.FONT_FAMILY, size=20, weight="bold")
+        self.f_subtitle  = tkfont.Font(family=T.FONT_FAMILY, size=10)
+        self.f_section   = tkfont.Font(family=T.FONT_FAMILY, size=9, weight="bold")
+        self.f_body      = tkfont.Font(family=T.FONT_FAMILY, size=11)
+        self.f_body_bold = tkfont.Font(family=T.FONT_FAMILY, size=11, weight="bold")
+        self.f_button    = tkfont.Font(family=T.FONT_FAMILY, size=10, weight="bold")
+        self.f_small     = tkfont.Font(family=T.FONT_FAMILY, size=9)
+        self.f_name      = tkfont.Font(family=T.FONT_FAMILY, size=10, weight="bold")
+        self.f_chat      = tkfont.Font(family=T.FONT_FAMILY, size=11)
+        self.f_log       = tkfont.Font(family=T.FONT_MONO, size=9)
+        self.f_input     = tkfont.Font(family=T.FONT_FAMILY, size=11)
 
     # ═══════════════════════════════════════════
     # Построение UI
     # ═══════════════════════════════════════════
     def _build_ui(self) -> None:
-        # Главный контейнер — две колонки
-        main = tk.Frame(self.root, bg=BG)
+        main = tk.Frame(self.root, bg=T.BG_ROOT)
         main.pack(fill=tk.BOTH, expand=True)
 
-        # ─── Левая панель ───────────────────
-        self._build_left_panel(main)
+        self._build_sidebar(main)
 
         # Разделитель
-        sep = tk.Frame(main, bg=BORDER, width=1)
-        sep.pack(side=tk.LEFT, fill=tk.Y)
+        tk.Frame(main, bg=T.BORDER, width=1).pack(side=tk.LEFT, fill=tk.Y)
 
-        # ─── Правая панель ─────────────────
-        self._build_right_panel(main)
+        self._build_right(main)
 
-    def _build_left_panel(self, parent: tk.Frame) -> None:
-        left = tk.Frame(parent, bg=PANEL, width=260)
-        left.pack(side=tk.LEFT, fill=tk.Y)
-        left.pack_propagate(False)
+    # ────────────────────────────────────────────
+    # САЙДБАР
+    # ────────────────────────────────────────────
+    def _build_sidebar(self, parent: tk.Frame) -> None:
+        sidebar = tk.Frame(parent, bg=T.BG_SIDEBAR, width=T.SIDEBAR_WIDTH)
+        sidebar.pack(side=tk.LEFT, fill=tk.Y)
+        sidebar.pack_propagate(False)
 
-        # Логотип
-        logo_frame = tk.Frame(left, bg=PANEL)
-        logo_frame.pack(fill=tk.X, padx=20, pady=(20, 10))
+        # ─── Логотип ─────────────────────
+        logo = tk.Frame(sidebar, bg=T.BG_SIDEBAR)
+        logo.pack(fill=tk.X, padx=T.PAD_XL, pady=(T.PAD_XL, T.PAD_LG))
+
+        # Иконка-кружок
+        circle = tk.Canvas(
+            logo, width=40, height=40,
+            bg=T.BG_SIDEBAR, highlightthickness=0,
+        )
+        circle.pack(side=tk.LEFT)
+        circle.create_oval(2, 2, 38, 38, fill=T.ACCENT_DIM, outline=T.ACCENT, width=2)
+        circle.create_text(20, 20, text="◈", fill=T.TEXT, font=(T.FONT_FAMILY, 14, "bold"))
+
+        text_box = tk.Frame(logo, bg=T.BG_SIDEBAR)
+        text_box.pack(side=tk.LEFT, padx=(T.PAD_MD, 0))
 
         tk.Label(
-            logo_frame, text="🤖 ЛЕГИОН",
-            bg=PANEL, fg=TEXT, font=self.font_logo,
+            text_box, text="Легион",
+            bg=T.BG_SIDEBAR, fg=T.TEXT_HEADING, font=self.f_logo,
         ).pack(anchor="w")
-
         tk.Label(
-            logo_frame, text="AI Assistant v4.5",
-            bg=PANEL, fg=TEXT_DIM, font=self.font_ui,
+            text_box, text="AI Assistant",
+            bg=T.BG_SIDEBAR, fg=T.TEXT_DIM, font=self.f_subtitle,
         ).pack(anchor="w")
 
-        # Разделитель
-        tk.Frame(left, bg=BORDER, height=1).pack(fill=tk.X, padx=20, pady=15)
+        # ─── Секция "Управление" ─────────
+        self._section_label(sidebar, "УПРАВЛЕНИЕ")
 
-        # Кнопки
-        btn_frame = tk.Frame(left, bg=PANEL)
-        btn_frame.pack(fill=tk.X, padx=15, pady=5)
+        btn_box = tk.Frame(sidebar, bg=T.BG_SIDEBAR)
+        btn_box.pack(fill=tk.X, padx=T.PAD_LG, pady=(0, T.PAD_LG))
 
-        self.btn_avatar = self._make_button(
-            btn_frame, "🎨  Открыть аватар", self._on_open_avatar
+        self.btn_avatar = self._make_btn(
+            btn_box, "🎨", "Открыть аватар",
+            "Открыть HTML-аватар в браузере",
+            self._on_open_avatar,
+            variant="default",
         )
-        self.btn_avatar.pack(fill=tk.X, pady=4)
+        self.btn_avatar.pack(fill=tk.X, pady=3)
 
-        self.btn_voice = self._make_button(
-            btn_frame, "🎤  Запустить голос", self._on_toggle_voice
+        self.btn_voice = self._make_btn(
+            btn_box, "🎤", "Запустить голос",
+            "Активировать микрофон",
+            self._on_toggle_voice,
+            variant="accent",
         )
-        self.btn_voice.pack(fill=tk.X, pady=4)
+        self.btn_voice.pack(fill=tk.X, pady=3)
 
-        self.btn_stop = self._make_button(
-            btn_frame, "⏹  Остановить голос", self._on_stop_voice
+        self.btn_stop = self._make_btn(
+            btn_box, "⏹", "Остановить голос",
+            "Выключить микрофон",
+            self._on_stop_voice,
+            variant="danger",
         )
-        self.btn_stop.pack(fill=tk.X, pady=4)
+        self.btn_stop.pack(fill=tk.X, pady=3)
         self.btn_stop.configure(state=tk.DISABLED)
 
-        # Разделитель
-        tk.Frame(left, bg=BORDER, height=1).pack(fill=tk.X, padx=20, pady=15)
+        # ─── Секция "Статус" ──────────────
+        self._section_label(sidebar, "СТАТУС")
 
-        # Статус
-        status_frame = tk.Frame(left, bg=PANEL)
-        status_frame.pack(fill=tk.X, padx=20)
+        status_box = tk.Frame(sidebar, bg=T.BG_SIDEBAR)
+        status_box.pack(fill=tk.X, padx=T.PAD_LG, pady=(0, T.PAD_LG))
 
-        tk.Label(
-            status_frame, text="СТАТУС",
-            bg=PANEL, fg=TEXT_DIM, font=self.font_ui_bold,
-        ).pack(anchor="w")
+        status_inner = tk.Frame(status_box, bg=T.BG_PANEL)
+        status_inner.pack(fill=tk.X)
+
+        dot_row = tk.Frame(status_inner, bg=T.BG_PANEL)
+        dot_row.pack(fill=tk.X, padx=T.PAD_MD, pady=(T.PAD_MD, 4))
+
+        self.status_dot = tk.Canvas(
+            dot_row, width=10, height=10,
+            bg=T.BG_PANEL, highlightthickness=0,
+        )
+        self.status_dot.pack(side=tk.LEFT)
+        self._dot_item = self.status_dot.create_oval(
+            1, 1, 9, 9, fill=T.SUCCESS, outline=""
+        )
 
         self.status_label = tk.Label(
-            status_frame, text="●  Готов",
-            bg=PANEL, fg=GREEN, font=self.font_ui,
+            dot_row, text="Готов",
+            bg=T.BG_PANEL, fg=T.TEXT, font=self.f_body_bold,
         )
-        self.status_label.pack(anchor="w", pady=(5, 0))
+        self.status_label.pack(side=tk.LEFT, padx=(T.PAD_SM, 0))
 
         self.status_sub = tk.Label(
-            status_frame, text="Голосовой режим выключен",
-            bg=PANEL, fg=TEXT_DIM, font=self.font_ui,
-            wraplength=220, justify="left",
+            status_inner, text="Голосовой режим выключен",
+            bg=T.BG_PANEL, fg=T.TEXT_MUTED, font=self.f_small,
+            wraplength=210, justify="left", anchor="w",
         )
-        self.status_sub.pack(anchor="w", pady=(2, 0))
+        self.status_sub.pack(fill=tk.X, padx=T.PAD_MD, pady=(0, T.PAD_MD))
 
-        # Разделитель
-        tk.Frame(left, bg=BORDER, height=1).pack(fill=tk.X, padx=20, pady=15)
+        # ─── Секция "Модель" ──────────────
+        self._section_label(sidebar, "МОДЕЛЬ")
 
-        # Информация
-        info_frame = tk.Frame(left, bg=PANEL)
-        info_frame.pack(fill=tk.X, padx=20)
+        model_box = tk.Frame(sidebar, bg=T.BG_SIDEBAR)
+        model_box.pack(fill=tk.X, padx=T.PAD_LG)
 
-        tk.Label(
-            info_frame, text="МОДЕЛЬ",
-            bg=PANEL, fg=TEXT_DIM, font=self.font_ui_bold,
-        ).pack(anchor="w")
+        model_inner = tk.Frame(model_box, bg=T.BG_PANEL)
+        model_inner.pack(fill=tk.X)
 
         tk.Label(
-            info_frame, text=self.cfg.ai.model_name,
-            bg=PANEL, fg=TEXT, font=self.font_ui,
-            wraplength=220, justify="left",
-        ).pack(anchor="w", pady=(5, 0))
+            model_inner, text=cfg_model_name(self.cfg),
+            bg=T.BG_PANEL, fg=T.ACCENT, font=self.f_small,
+            wraplength=210, justify="left", anchor="w",
+            padx=T.PAD_MD, pady=T.PAD_MD,
+        ).pack(fill=tk.X)
 
-        # Растяжка
-        tk.Frame(left, bg=PANEL).pack(fill=tk.BOTH, expand=True)
+        # ─── Растяжка ─────────────────────
+        tk.Frame(sidebar, bg=T.BG_SIDEBAR).pack(fill=tk.BOTH, expand=True)
 
-        # Подпись снизу
+        # ─── Футер ────────────────────────
+        footer = tk.Frame(sidebar, bg=T.BG_SIDEBAR)
+        footer.pack(fill=tk.X, padx=T.PAD_LG, pady=T.PAD_LG)
+
+        tk.Frame(footer, bg=T.BORDER, height=1).pack(fill=tk.X, pady=(0, T.PAD_MD))
+
         tk.Label(
-            left, text="◈ Работает локально",
-            bg=PANEL, fg=TEXT_DIM, font=("Segoe UI", 9),
-        ).pack(side=tk.BOTTOM, pady=15)
+            footer, text="● Локально · Без облака",
+            bg=T.BG_SIDEBAR, fg=T.TEXT_DIM, font=self.f_small,
+        ).pack()
 
-    def _build_right_panel(self, parent: tk.Frame) -> None:
-        right = tk.Frame(parent, bg=BG)
+    def _section_label(self, parent: tk.Widget, text: str) -> None:
+        tk.Label(
+            parent, text=text,
+            bg=T.BG_SIDEBAR, fg=T.TEXT_DIM,
+            font=self.f_section,
+        ).pack(anchor="w", padx=T.PAD_LG, pady=(T.PAD_MD, T.PAD_SM))
+
+    def _make_btn(
+        self, parent, icon: str, text: str, tip: str,
+        command, variant: str = "default",
+    ) -> tk.Button:
+        """Кнопка с иконкой и текстом. Variant: default/accent/danger."""
+        colors = {
+            "default": (T.BG_PANEL, T.BG_HOVER, T.TEXT),
+            "accent":  (T.ACCENT_DIM, T.ACCENT, T.TEXT),
+            "danger":  (T.BG_PANEL, T.DANGER_HOVER, T.TEXT),
+        }
+        bg, hover, fg = colors.get(variant, colors["default"])
+
+        # Фрейм-обёртка
+        wrapper = tk.Frame(parent, bg=bg)
+        wrapper.pack_propagate(False)
+
+        btn = tk.Button(
+            wrapper,
+            text=f"  {icon}   {text}",
+            command=command,
+            bg=bg, fg=fg,
+            activebackground=hover, activeforeground=T.TEXT_HEADING,
+            relief=tk.FLAT, bd=0,
+            font=self.f_button,
+            anchor="w", justify="left",
+            padx=T.PAD_MD, pady=10,
+            cursor="hand2",
+        )
+        btn.pack(fill=tk.BOTH, expand=True)
+
+        def on_enter(e):
+            if btn["state"] != tk.DISABLED:
+                btn.configure(bg=hover)
+
+        def on_leave(e):
+            if btn["state"] != tk.DISABLED:
+                btn.configure(bg=bg)
+
+        btn.bind("<Enter>", on_enter)
+        btn.bind("<Leave>", on_leave)
+
+        # Хак: возвращаем сам btn, а wrapper держим для pack
+        btn._wrapper = wrapper
+        return btn
+
+    # ────────────────────────────────────────────
+    # ПРАВАЯ ЧАСТЬ
+    # ────────────────────────────────────────────
+    def _build_right(self, parent: tk.Frame) -> None:
+        right = tk.Frame(parent, bg=T.BG_ROOT)
         right.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
-        # ─── Верх: ЧАТ ─────────────────────
-        top = tk.Frame(right, bg=BG)
-        top.pack(fill=tk.BOTH, expand=True)
+        # Верх: чат
+        self._build_chat(right)
 
-        self._build_chat(top)
+        # Разделитель
+        tk.Frame(right, bg=T.BORDER, height=1).pack(fill=tk.X)
 
-        # Горизонтальный разделитель
-        tk.Frame(right, bg=BORDER, height=1).pack(fill=tk.X)
-
-        # ─── Низ: ЛОГ ──────────────────────
-        bottom = tk.Frame(right, bg=BG)
-        bottom.pack(fill=tk.BOTH, expand=True)
-
-        self._build_log(bottom)
+        # Низ: лог
+        self._build_log(right)
 
     def _build_chat(self, parent: tk.Frame) -> None:
-        header = tk.Frame(parent, bg=PANEL)
-        header.pack(fill=tk.X)
+        chat = tk.Frame(parent, bg=T.BG_ROOT)
+        chat.pack(fill=tk.BOTH, expand=True)
+
+        # ─── Заголовок ───────────────────
+        header = tk.Frame(chat, bg=T.BG_ROOT)
+        header.pack(fill=tk.X, padx=T.PAD_XL, pady=(T.PAD_LG, T.PAD_MD))
+
+        title_row = tk.Frame(header, bg=T.BG_ROOT)
+        title_row.pack(fill=tk.X)
 
         tk.Label(
-            header, text="💬  ЧАТ",
-            bg=PANEL, fg=TEXT, font=self.font_ui_bold,
-        ).pack(side=tk.LEFT, padx=20, pady=10)
-
-        tk.Label(
-            header, text="текстовый режим (без голоса)",
-            bg=PANEL, fg=TEXT_DIM, font=("Segoe UI", 9),
+            title_row, text="Чат",
+            bg=T.BG_ROOT, fg=T.TEXT_HEADING, font=("Segoe UI", 14, "bold"),
         ).pack(side=tk.LEFT)
 
-        # Область диалога
-        chat_outer = tk.Frame(parent, bg=BG)
-        chat_outer.pack(fill=tk.BOTH, expand=True, padx=15, pady=(10, 5))
+        tk.Label(
+            title_row, text="  · текстовый режим без голоса",
+            bg=T.BG_ROOT, fg=T.TEXT_DIM, font=self.f_small,
+        ).pack(side=tk.LEFT)
 
-        self.chat_text = tk.Text(
-            chat_outer,
-            bg=PANEL_2, fg=TEXT,
-            font=self.font_chat,
-            wrap=tk.WORD,
-            relief=tk.FLAT, bd=0,
-            padx=15, pady=10,
-            insertbackground=TEXT,
-            state=tk.DISABLED,
-            spacing1=2, spacing3=6,
+        # ─── Область сообщений ───────────
+        msg_outer = tk.Frame(chat, bg=T.BG_ROOT)
+        msg_outer.pack(fill=tk.BOTH, expand=True, padx=T.PAD_XL, pady=(0, T.PAD_MD))
+
+        self.chat_canvas = tk.Canvas(
+            msg_outer,
+            bg=T.BG_PANEL,
+            highlightthickness=0,
+            bd=0,
         )
-        self.chat_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        self.chat_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
-        chat_scroll = tk.Scrollbar(
-            chat_outer, command=self.chat_text.yview,
-            bg=PANEL_3, troughcolor=PANEL,
-            activebackground=ACCENT,
-            relief=tk.FLAT, bd=0, width=10,
+        chat_scroll = ttk.Scrollbar(
+            msg_outer, orient="vertical",
+            command=self.chat_canvas.yview,
         )
         chat_scroll.pack(side=tk.RIGHT, fill=tk.Y)
-        self.chat_text.configure(yscrollcommand=chat_scroll.set)
+        self.chat_canvas.configure(yscrollcommand=chat_scroll.set)
 
-        # Теги для диалога
-        self.chat_text.tag_configure(
-            "user_name", foreground=ACCENT, font=self.font_ui_bold, spacing1=8
-        )
-        self.chat_text.tag_configure(
-            "user_text", foreground=TEXT, lmargin1=10, lmargin2=10
-        )
-        self.chat_text.tag_configure(
-            "ai_name", foreground=GREEN, font=self.font_ui_bold, spacing1=8
-        )
-        self.chat_text.tag_configure(
-            "ai_text", foreground=TEXT, lmargin1=10, lmargin2=10
-        )
-        self.chat_text.tag_configure(
-            "error_text", foreground=RED, lmargin1=10, lmargin2=10
+        # Внутренний фрейм для сообщений
+        self.msg_frame = tk.Frame(self.chat_canvas, bg=T.BG_PANEL)
+        self._canvas_window = self.chat_canvas.create_window(
+            (0, 0), window=self.msg_frame, anchor="nw"
         )
 
-        # ─── Поле ввода ────────────────────
-        input_outer = tk.Frame(parent, bg=BG)
-        input_outer.pack(fill=tk.X, padx=15, pady=(5, 12))
+        self.msg_frame.bind(
+            "<Configure>",
+            lambda e: self.chat_canvas.configure(
+                scrollregion=self.chat_canvas.bbox("all")
+            ),
+        )
+        self.chat_canvas.bind(
+            "<Configure>",
+            lambda e: self.chat_canvas.itemconfig(
+                self._canvas_window, width=e.width
+            ),
+        )
 
-        input_frame = tk.Frame(input_outer, bg=PANEL_3)
-        input_frame.pack(fill=tk.X)
+        # Scroll по колесу
+        def _on_mousewheel(event):
+            self.chat_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+        self.chat_canvas.bind_all("<MouseWheel>", _on_mousewheel)
+
+        # ─── Строка ввода ────────────────
+        input_outer = tk.Frame(chat, bg=T.BG_ROOT)
+        input_outer.pack(fill=tk.X, padx=T.PAD_XL, pady=(0, T.PAD_LG))
+
+        input_box = tk.Frame(input_outer, bg=T.BG_INPUT)
+        input_box.pack(fill=tk.X)
 
         self.chat_entry = tk.Entry(
-            input_frame,
-            bg=PANEL_3, fg=TEXT,
-            font=self.font_chat,
+            input_box,
+            bg=T.BG_INPUT, fg=T.TEXT,
+            font=self.f_input,
             relief=tk.FLAT, bd=0,
-            insertbackground=TEXT,
+            insertbackground=T.ACCENT,
+            highlightthickness=0,
         )
-        self.chat_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=12, pady=10)
+        self.chat_entry.pack(
+            side=tk.LEFT, fill=tk.X, expand=True,
+            padx=(T.PAD_LG, T.PAD_MD), pady=14,
+        )
         self.chat_entry.bind("<Return>", lambda e: self._on_send_chat())
 
         self.btn_send = tk.Button(
-            input_frame, text="Отправить  ↵",
+            input_box, text="Отправить  ↵",
             command=self._on_send_chat,
-            bg=ACCENT, fg="#ffffff",
-            activebackground=ACCENT_HOVER, activeforeground="#ffffff",
+            bg=T.ACCENT_DIM, fg=T.TEXT_HEADING,
+            activebackground=T.ACCENT, activeforeground=T.TEXT_HEADING,
             relief=tk.FLAT, bd=0,
-            font=self.font_ui_bold,
-            padx=20, pady=8,
+            font=self.f_button,
+            padx=T.PAD_LG, pady=10,
             cursor="hand2",
         )
-        self.btn_send.pack(side=tk.RIGHT, padx=6, pady=6)
+        self.btn_send.pack(side=tk.RIGHT, padx=(0, 8), pady=6)
+
+        def on_enter(e):
+            if self.btn_send["state"] != tk.DISABLED:
+                self.btn_send.configure(bg=T.ACCENT)
+        def on_leave(e):
+            if self.btn_send["state"] != tk.DISABLED:
+                self.btn_send.configure(bg=T.ACCENT_DIM)
+        self.btn_send.bind("<Enter>", on_enter)
+        self.btn_send.bind("<Leave>", on_leave)
 
     def _build_log(self, parent: tk.Frame) -> None:
-        header = tk.Frame(parent, bg=PANEL)
-        header.pack(fill=tk.X)
+        log_frame = tk.Frame(parent, bg=T.BG_ROOT)
+        log_frame.pack(fill=tk.BOTH, expand=True)
+
+        # ─── Заголовок ───────────────────
+        header = tk.Frame(log_frame, bg=T.BG_ROOT)
+        header.pack(fill=tk.X, padx=T.PAD_XL, pady=(T.PAD_MD, T.PAD_MD))
 
         tk.Label(
-            header, text="📜  ЛОГ",
-            bg=PANEL, fg=TEXT, font=self.font_ui_bold,
-        ).pack(side=tk.LEFT, padx=20, pady=10)
-
-        tk.Label(
-            header, text="системные события, распознавание, ответы",
-            bg=PANEL, fg=TEXT_DIM, font=("Segoe UI", 9),
+            header, text="Лог событий",
+            bg=T.BG_ROOT, fg=T.TEXT_HEADING, font=("Segoe UI", 12, "bold"),
         ).pack(side=tk.LEFT)
 
-        self.btn_clear_log = tk.Button(
+        tk.Label(
+            header, text="  · системные события и распознавание",
+            bg=T.BG_ROOT, fg=T.TEXT_DIM, font=self.f_small,
+        ).pack(side=tk.LEFT)
+
+        btn_clear = tk.Button(
             header, text="Очистить",
             command=self._on_clear_log,
-            bg=PANEL_2, fg=TEXT_DIM,
-            activebackground=PANEL_3, activeforeground=TEXT,
+            bg=T.BG_PANEL, fg=T.TEXT_MUTED,
+            activebackground=T.BG_HOVER, activeforeground=T.TEXT,
             relief=tk.FLAT, bd=0,
-            font=("Segoe UI", 9),
-            padx=10, pady=3,
+            font=self.f_small,
+            padx=T.PAD_MD, pady=4,
             cursor="hand2",
         )
-        self.btn_clear_log.pack(side=tk.RIGHT, padx=15, pady=6)
+        btn_clear.pack(side=tk.RIGHT)
 
-        log_outer = tk.Frame(parent, bg=BG)
-        log_outer.pack(fill=tk.BOTH, expand=True, padx=15, pady=(10, 12))
+        # ─── Лог ─────────────────────────
+        log_outer = tk.Frame(log_frame, bg=T.BG_ROOT)
+        log_outer.pack(fill=tk.BOTH, expand=True, padx=T.PAD_XL, pady=(0, T.PAD_LG))
 
         self.log_text = tk.Text(
             log_outer,
-            bg=PANEL_2, fg=TEXT_DIM,
-            font=self.font_log,
+            bg=T.BG_PANEL, fg=T.TEXT_MUTED,
+            font=self.f_log,
             wrap=tk.WORD,
             relief=tk.FLAT, bd=0,
-            padx=12, pady=10,
+            padx=T.PAD_MD, pady=T.PAD_MD,
             state=tk.DISABLED,
+            highlightthickness=0,
+            spacing1=1, spacing3=2,
         )
         self.log_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
-        log_scroll = tk.Scrollbar(
-            log_outer, command=self.log_text.yview,
-            bg=PANEL_3, troughcolor=PANEL,
-            activebackground=ACCENT,
-            relief=tk.FLAT, bd=0, width=10,
+        log_scroll = ttk.Scrollbar(
+            log_outer, orient="vertical",
+            command=self.log_text.yview,
         )
         log_scroll.pack(side=tk.RIGHT, fill=tk.Y)
         self.log_text.configure(yscrollcommand=log_scroll.set)
 
-        # Цвета для уровней
-        self.log_text.tag_configure("INFO", foreground=TEXT_DIM)
-        self.log_text.tag_configure("WARNING", foreground=YELLOW)
-        self.log_text.tag_configure("ERROR", foreground=RED)
-        self.log_text.tag_configure("DEBUG", foreground="#666666")
+        # Теги
+        self.log_text.tag_configure("INFO",    foreground=T.TEXT_MUTED)
+        self.log_text.tag_configure("WARNING", foreground=T.WARNING)
+        self.log_text.tag_configure("ERROR",   foreground=T.DANGER)
+        self.log_text.tag_configure("DEBUG",   foreground=T.TEXT_DIM)
+        self.log_text.tag_configure("time",    foreground=T.TEXT_DIM)
 
-    def _make_button(self, parent: tk.Frame, text: str, command):
-        btn = tk.Button(
-            parent, text=text, command=command,
-            bg=PANEL_2, fg=TEXT,
-            activebackground=ACCENT, activeforeground="#ffffff",
-            relief=tk.FLAT, bd=0,
-            font=self.font_ui,
-            padx=14, pady=10,
-            cursor="hand2",
-            anchor="w", justify="left",
+    # ═══════════════════════════════════════════
+    # ЧАТ — пузыри сообщений
+    # ═══════════════════════════════════════════
+    def _append_user_bubble(self, text: str) -> None:
+        row = tk.Frame(self.msg_frame, bg=T.BG_PANEL)
+        row.pack(fill=tk.X, padx=T.PAD_LG, pady=(T.PAD_MD, 2))
+
+        # Имя
+        tk.Label(
+            row, text="Вы",
+            bg=T.BG_PANEL, fg=T.ACCENT, font=self.f_name,
+        ).pack(anchor="e")
+
+        # Пузырь
+        bubble = tk.Frame(row, bg=T.USER_BUBBLE)
+        bubble.pack(anchor="e", pady=(2, 0))
+
+        tk.Label(
+            bubble, text=text,
+            bg=T.USER_BUBBLE, fg=T.TEXT_HEADING,
+            font=self.f_chat,
+            wraplength=520, justify="left", anchor="w",
+            padx=T.PAD_MD, pady=T.PAD_SM,
+        ).pack()
+
+        self._scroll_chat_bottom()
+
+    def _append_ai_bubble_start(self) -> tk.Label:
+        """Начинает пузырь ИИ, возвращает Label для обновления текста."""
+        row = tk.Frame(self.msg_frame, bg=T.BG_PANEL)
+        row.pack(fill=tk.X, padx=T.PAD_LG, pady=(T.PAD_MD, 2))
+
+        tk.Label(
+            row, text="Легион",
+            bg=T.BG_PANEL, fg=T.SUCCESS, font=self.f_name,
+        ).pack(anchor="w")
+
+        bubble = tk.Frame(row, bg=T.AI_BUBBLE)
+        bubble.pack(anchor="w", pady=(2, 0))
+
+        label = tk.Label(
+            bubble, text="",
+            bg=T.AI_BUBBLE, fg=T.TEXT,
+            font=self.f_chat,
+            wraplength=520, justify="left", anchor="w",
+            padx=T.PAD_MD, pady=T.PAD_SM,
         )
+        label.pack()
 
-        def on_enter(e):
-            if btn["state"] != tk.DISABLED:
-                btn.configure(bg=PANEL_3)
+        self._scroll_chat_bottom()
+        return label
 
-        def on_leave(e):
-            if btn["state"] != tk.DISABLED:
-                btn.configure(bg=PANEL_2)
-
-        btn.bind("<Enter>", on_enter)
-        btn.bind("<Leave>", on_leave)
-        return btn
+    def _scroll_chat_bottom(self) -> None:
+        self.msg_frame.update_idletasks()
+        self.chat_canvas.yview_moveto(1.0)
 
     # ═══════════════════════════════════════════
     # Логи → GUI
@@ -451,24 +578,23 @@ class LegionGUI:
         if self._assistant_thread is not None and self._assistant_thread.is_alive():
             return
 
-        self._set_status("●  Загрузка...", YELLOW, "Инициализация голосового режима")
+        self._set_status("Загрузка...", T.WARNING, "Инициализация голосового режима")
         self.btn_voice.configure(state=tk.DISABLED)
 
         def worker():
             try:
                 self._assistant = LegionAssistant(
-                    self.cfg,
-                    avatar_server=self._avatar_server,
+                    self.cfg, avatar_server=self._avatar_server,
                 )
                 self.root.after(0, lambda: self._set_status(
-                    "●  Голос активен", GREEN, "Слушаю вас (микрофон включён)"
+                    "Голос активен", T.SUCCESS, "Слушаю микрофон"
                 ))
                 self.root.after(0, lambda: self.btn_stop.configure(state=tk.NORMAL))
                 self._assistant.run()
             except Exception as e:
                 log.error(f"Ошибка голосового режима: {e}")
                 self.root.after(0, lambda: self._set_status(
-                    "●  Ошибка", RED, str(e)[:60]
+                    "Ошибка", T.DANGER, str(e)[:60]
                 ))
             finally:
                 self.root.after(0, self._on_voice_stopped)
@@ -480,16 +606,17 @@ class LegionGUI:
         if self._assistant is not None:
             log.info("Остановка голосового режима...")
             self._assistant._stop_event.set()
-            self._set_status("●  Остановка...", YELLOW, "")
+            self._set_status("Остановка...", T.WARNING, "")
 
     def _on_voice_stopped(self) -> None:
         self._assistant = None
         self.btn_voice.configure(state=tk.NORMAL)
         self.btn_stop.configure(state=tk.DISABLED)
-        self._set_status("●  Готов", GREEN, "Голосовой режим выключен")
+        self._set_status("Готов", T.SUCCESS, "Голосовой режим выключен")
 
-    def _set_status(self, line: str, color: str, sub: str) -> None:
-        self.status_label.configure(text=line, fg=color)
+    def _set_status(self, text: str, color: str, sub: str) -> None:
+        self.status_label.configure(text=text)
+        self.status_dot.itemconfig(self._dot_item, fill=color)
         self.status_sub.configure(text=sub)
 
     # ═══════════════════════════════════════════
@@ -502,60 +629,47 @@ class LegionGUI:
 
         self.chat_entry.delete(0, tk.END)
         self._chat_in_progress = True
-        self.btn_send.configure(state=tk.DISABLED)
+        self.btn_send.configure(state=tk.DISABLED, bg=T.BG_HOVER)
 
-        self._append_chat_user(text)
+        self._append_user_bubble(text)
 
         if self._chat_engine is None:
             self._chat_engine = ChatEngine(self.cfg)
 
-        # Буфер для стриминга
-        chat_buffer = {"text": "", "started": False}
+        ai_label = {"widget": None}
+        ai_text = {"buffer": ""}
 
         def on_chunk(token: str) -> None:
-            chat_buffer["text"] += token
-            if not chat_buffer["started"]:
-                chat_buffer["started"] = True
-                self.root.after(0, lambda: self._append_chat_ai_start())
-            self.root.after(0, lambda t=token: self._append_chat_ai_chunk(t))
+            ai_text["buffer"] += token
+            self.root.after(0, lambda: self._update_ai_bubble(ai_label, ai_text["buffer"]))
 
         def on_done(full: str) -> None:
             self.root.after(0, self._finish_chat)
 
         def on_error(err: str) -> None:
-            self.root.after(0, lambda: self._append_chat_error(err))
+            self.root.after(0, lambda: self._show_chat_error(err))
             self.root.after(0, self._finish_chat)
+
+        # Создаём пузырь ИИ
+        def start_ai():
+            ai_label["widget"] = self._append_ai_bubble_start()
+        self.root.after(0, start_ai)
 
         self._chat_engine.ask(text, on_chunk=on_chunk, on_done=on_done, on_error=on_error)
 
+    def _update_ai_bubble(self, ai_label: dict, text: str) -> None:
+        if ai_label["widget"] is not None:
+            ai_label["widget"].configure(text=text)
+            self._scroll_chat_bottom()
+
+    def _show_chat_error(self, err: str) -> None:
+        self._append_user_bubble(f"[Ошибка: {err}]")
+
     def _finish_chat(self) -> None:
         self._chat_in_progress = False
-        self.btn_send.configure(state=tk.NORMAL)
+        self.btn_send.configure(state=tk.NORMAL, bg=T.ACCENT_DIM)
         self.chat_entry.focus_set()
-
-    def _append_chat_user(self, text: str) -> None:
-        self.chat_text.configure(state=tk.NORMAL)
-        self.chat_text.insert(tk.END, "Вы\n", "user_name")
-        self.chat_text.insert(tk.END, text + "\n\n", "user_text")
-        self.chat_text.see(tk.END)
-        self.chat_text.configure(state=tk.DISABLED)
-
-    def _append_chat_ai_start(self) -> None:
-        self.chat_text.configure(state=tk.NORMAL)
-        self.chat_text.insert(tk.END, "Легион\n", "ai_name")
-        self.chat_text.configure(state=tk.DISABLED)
-
-    def _append_chat_ai_chunk(self, token: str) -> None:
-        self.chat_text.configure(state=tk.NORMAL)
-        self.chat_text.insert(tk.END, token, "ai_text")
-        self.chat_text.see(tk.END)
-        self.chat_text.configure(state=tk.DISABLED)
-
-    def _append_chat_error(self, err: str) -> None:
-        self.chat_text.configure(state=tk.NORMAL)
-        self.chat_text.insert(tk.END, f"\n[Ошибка: {err}]\n\n", "error_text")
-        self.chat_text.see(tk.END)
-        self.chat_text.configure(state=tk.DISABLED)
+        self._scroll_chat_bottom()
 
     # ═══════════════════════════════════════════
     # Завершение
@@ -573,19 +687,24 @@ class LegionGUI:
         self.root.destroy()
 
     def run(self) -> None:
-        # Приветствие в чате
-        self.chat_text.configure(state=tk.NORMAL)
-        self.chat_text.insert(
-            tk.END,
-            "Легион\n", "ai_name"
+        # Приветствие
+        welcome = self._append_ai_bubble_start()
+        welcome.configure(
+            text=(
+                "Привет! Я Легион — твой локальный AI-ассистент.\n\n"
+                "• Пиши сюда — получишь текстовый ответ\n"
+                "• Нажми «🎤 Запустить голос» — общайся голосом\n"
+                "• «🎨 Открыть аватар» — визуальный интерфейс\n"
+            )
         )
-        self.chat_text.insert(
-            tk.END,
-            "Привет! Я текстовый режим. Могу общаться печатая. "
-            "Для голосового режима нажми «Запустить голос» слева.\n\n",
-            "ai_text"
-        )
-        self.chat_text.configure(state=tk.DISABLED)
         self.chat_entry.focus_set()
-
         self.root.mainloop()
+
+
+def cfg_model_name(cfg: LegionConfig) -> str:
+    """Короткое имя модели для отображения."""
+    name = cfg.ai.model_name or ""
+    # Если есть '/', берём последнюю часть
+    if "/" in name:
+        return name.split("/")[-1]
+    return name
