@@ -6,8 +6,8 @@ import json
 import urllib.request
 import urllib.error
 
-from core.config_loader import load_config
-from core.logger import log
+from number_nol.core.config_loader import load_config
+from number_nol.core.logger import log
 
 
 def check_lm_studio(cfg) -> bool:
@@ -64,7 +64,7 @@ def main() -> int:
         # всё равно даём запуститься — ассистент проверит сам
         # return 2
 
-    from gui.app import LegionGUI
+    from number_nol.gui.app import LegionGUI
     gui = LegionGUI(cfg)
     gui.run()
     return 0

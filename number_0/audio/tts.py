@@ -14,7 +14,7 @@ import numpy as np
 import sounddevice as sd
 import torch
 
-from core.logger import log
+from number_nol.core.logger import log
 
 try:
     from scipy import signal as scipy_signal

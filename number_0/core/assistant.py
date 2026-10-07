@@ -20,13 +20,13 @@ import torch
 import webbrowser
 from openai import OpenAI
 
-from core.config_loader import LegionConfig
-from core.logger import log
-from core.dialogue import DialogueManager
-from core.avatar_server import AvatarServer
-from audio.tts import TTSEngine
-from audio.stt import STTEngine
-from commands.processor import CommandProcessor
+from number_nol.core.config_loader import LegionConfig
+from number_nol.core.logger import log
+from number_nol.core.dialogue import DialogueManager
+from number_nol.core.avatar_server import AvatarServer
+from number_nol.audio.tts import TTSEngine
+from number_nol.audio.stt import STTEngine
+from number_nol.commands.processor import CommandProcessor
 
 
 class LegionAssistant:

@@ -11,8 +11,8 @@ import numpy as np
 import sounddevice as sd
 from vosk import Model, KaldiRecognizer, SetLogLevel
 
-from core.logger import log
-from audio.audio_utils import (
+from number_nol.core.logger import log
+from number_nol.audio.audio_utils import (
     pcm_bytes_to_float32,
     is_speech,
     highpass_filter,

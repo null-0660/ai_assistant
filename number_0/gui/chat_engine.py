@@ -8,9 +8,9 @@ from typing import Optional, Callable
 
 from openai import OpenAI
 
-from core.config_loader import LegionConfig
-from core.dialogue import DialogueManager
-from core.logger import log
+from number_nol.core.config_loader import LegionConfig
+from number_nol.core.dialogue import DialogueManager
+from number_nol.core.logger import log
 
 
 class ChatEngine:

@@ -1,254 +1,221 @@
-# 🤖 ЛЕГИОН — Голосовой ИИ-ассистент
+# 🐍 100 Days — 100 Python Projects
 
-[![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)
-[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)]()
+> **100 дней · 100 проектов · Python · практика · развитие**
 
-**ЛЕГИОН** — модульный голосовой ассистент на русском языке. Работает полностью **локально**, без облаков и API-ключей. Слушает микрофон, распознаёт речь (Vosk), думает (локальная LLM через LM Studio), отвечает голосом (Silero TTS) и выполняет 50+ системных команд.
+Этот репозиторий изначально был создан как мой личный **AI Assistant** — локальный голосовой помощник.
 
----
+Со временем я решил изменить направление репозитория и превратить его в свой личный **100 Days — 100 Python Projects**.
 
-## ✨ Возможности
+Теперь моя цель — в течение 100 дней создать **100 небольших Python-проектов**, постепенно усложняя их и изучая новые возможности Python, библиотеки и технологии прямо в процессе разработки.
 
-### 🎤 Слух
-- Распознавание речи через **Vosk** (русская модель)
-- **VAD** (Voice Activity Detection) — не реагирует на тишину
-- **Шумоподавление** и **нормализация** аудио
-- **Confidence-фильтр** — отбрасывает неразборчивые фразы
-- **Грамматика-подсказки** для точного распознавания команд
+Я не хочу просто изучать Python по отдельным урокам или документации. Вместо этого я хочу **учиться через создание реальных маленьких приложений**.
 
-### 🧠 Мозг
-- Локальная LLM через **LM Studio** (OpenAI-совместимый API)
-- Потоковые ответы (стриминг) — начинает говорить до конца генерации
-- Сохранение памяти между сессиями (`assets/memory.json`)
-- Автосброс при ошибках чередования ролей
-
-### 🔊 Голос
-- Синтез речи через **Silero TTS** (5 голосов: kseniya, aidar, baya, xenia, eugene)
-- **Разбивка на предложения** — паузы между ними
-- **Вариация скорости** ±4% — речь живее
-- **LRU-кэш** повторяющихся фраз
-- **Прерывание** речи голосом («стоп», «хватит», «замолчи»)
-
-### 🎯 Команды (50+)
-- **Система**: время, дата, батарея, CPU, память, диск
-- **Медиа**: громкость, пауза, треки, яркость
-- **Браузер**: ютуб, телеграм, гитхаб, поиск
-- **Окна**: закрыть, свернуть, alt+tab, максимизировать
-- **Клавиши**: enter, escape, копировать, вставить, undo
-- **Мышь**: двинуть, кликнуть, прокрутить
-- **Питание**: сон, перезагрузка, выключение
+Каждый проект рассчитан примерно на **10 минут — 1–2 часа** в зависимости от сложности. Главная идея — каждый день создавать что-то новое, экспериментировать и получать практический опыт.
 
 ---
 
-## 🚀 Быстрый старт
+# 🎯 Что я хочу изучить
 
-### 1. Требования
+В течение этих 100 проектов я хочу постепенно изучить и попрактиковать:
 
-- **Python 3.10+**
-- **LM Studio** — [скачать](https://lmstudio.ai/)
-- **Микрофон**
-- **Windows 10/11**, Linux или macOS
+* 🐍 Python Core
+* 🔄 циклы, условия и функции
+* 📦 структуры данных
+* 🗂️ работу с файлами
+* ⚙️ автоматизацию
+* 🖼️ обработку изображений
+* 📷 работу с камерой
+* 🎙️ работу с аудио и голосом
+* 🪟 создание пользовательских интерфейсов
+* 🎮 создание мини-игр
+* 🔢 NumPy
+* 📊 Pandas
+* 📈 Matplotlib
+* 🌐 HTTP и API
+* 🕷️ Web Parsing
+* 🤖 создание ботов
+* 🧠 Machine Learning
+* 💬 NLP
+* 👁️ Computer Vision
+* 🤖 Artificial Intelligence
 
-### 2. Установка
-
-```bash
-git clone https://github.com/null-0660/ai_assistant.git
-cd ai_assistant
-pip install -r requirements.txt
-```
-
-### 3. Модели (заглушки + инструкция)
-
-В проекте **нет** самих моделей — только папки-заглушки с инструкциями. Скачай их отдельно:
-
-| Модель | Куда положить | Откуда взять |
-|---|---|---|
-| **Vosk RU** | `model/` | [alphacephei.com/vosk/models](https://alphacephei.com/vosk/models) → `vosk-model-ru-0.42` |
-| **Silero TTS** | `v5_ru.pt` (в корень) | [models.silero.ai](https://models.silero.ai/models/tts/ru/v5_ru.pt) |
-| **LLM** | LM Studio | Через UI LM Studio (`gemma-3n-e4b-it-text` или другая) |
-
-Подробнее → [`docs/MODELS.md`](docs/MODELS.md)
-
-### 4. Настройка LM Studio
-
-1. Открой LM Studio → **Developer → Local Server**
-2. Запусти сервер (порт `1234`)
-3. Загрузи **одну** текстовую модель (например, `gemma-3n-e4b-it-text`)
-4. Проверь: [http://127.0.0.1:1234/v1/models](http://127.0.0.1:1234/v1/models)
-
-### 5. Конфиг
-
-Открой `config.yaml` и проверь:
-```yaml
-ai:
-  lm_studio_url: "http://127.0.0.1:1234/v1"
-  model_name: "gemma-3n-e4b-it-text"     # ← точно как в LM Studio
-```
-
-### 6. Запуск
-
-```bash
-python main.py
-```
+Главная задача — не просто познакомиться с библиотекой, а **использовать её в небольшом работающем проекте**.
 
 ---
 
-## 📁 Структура проекта
+# 🚀 100 Projects Roadmap
 
-```
-ai_assistant/
-├── main.py                       # точка входа
-├── config.yaml                   # конфиг (YAML)
-├── requirements.txt
-├── README.md                     # этот файл
-├── LICENSE
-├── .gitignore
-│
-├── core/                         # ядро
-│   ├── config_loader.py          # загрузка YAML
-│   ├── logger.py                 # логирование
-│   ├── dialogue.py               # память диалога
-│   ├── assistant.py              # главный цикл
-│   └── avatar_server.py          # HTTP для аватара
-│
-├── audio/                        # аудио
-│   ├── audio_utils.py            # VAD, шумодав, нормализация
-│   ├── stt.py                    # распознавание (Vosk)
-│   └── tts.py                    # синтез (Silero)
-│
-├── commands/                     # команды
-│   ├── processor.py              # обработчик
-│   ├── registry.py               # реестр
-│   └── plugins/                  # плагины
-│       ├── system.py             # система
-│       ├── media.py              # звук/медиа
-│       ├── web.py                # браузер
-│       └── windows.py            # окна/клавиши/мышь
-│
-├── assets/                       # ресурсы
-│   ├── legion_avatar.html        # HTML аватар
-│   └── avatar_state.json         # состояние аватара
-│
-├── docs/                         # документация
-│   ├── ARCHITECTURE.md           # архитектура
-│   ├── MODELS.md                 # как скачать модели
-│   ├── COMMANDS.md               # список команд
-│   ├── CONFIG.md                 # описание config.yaml
-│   └── PLUGINS.md                # как писать плагины
-│
-└── model/                        # ЗАГЛУШКА для Vosk
-    └── README.md                 # инструкция
-```
+## 🟢 Python Core — 01–20
 
-Подробнее о каждом файле → [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
+|  # | Project                    | Что изучается           |
+| -: | -------------------------- | ----------------------- |
+| 01 | 🧮 CLI Calculator          | Условия, циклы, функции |
+| 02 | 🎲 Random Number Generator | `random`, циклы         |
+| 03 | 🔢 Guess the Number        | `while`, условия        |
+| 04 | ✊ Rock Paper Scissors      | Логика, `random`        |
+| 05 | 🔐 Password Generator      | Строки, `random`        |
+| 06 | ⏱️ Countdown Timer         | `time`                  |
+| 07 | ⏰ Digital Clock            | `datetime`              |
+| 08 | 📊 Unit Converter          | Функции, словари        |
+| 09 | 💰 Currency Converter      | Словари, расчёты        |
+| 10 | 📋 To-Do List              | Списки, функции         |
+| 11 | 📝 Notes Manager           | Работа с файлами        |
+| 12 | 📒 Phone Book              | Словари                 |
+| 13 | 🎯 Grade System            | Списки, статистика      |
+| 14 | 🔤 Text Analyzer           | Строки, `Counter`       |
+| 15 | 🔢 Number Analyzer         | Списки                  |
+| 16 | 🔠 Nickname Generator      | Строки, `random`        |
+| 17 | 🧩 Quiz                    | Словари, циклы          |
+| 18 | 🃏 Card Generator          | Списки                  |
+| 19 | 🎰 Mini Slot Machine       | Случайность, логика     |
+| 20 | 🗓️ Calendar Generator     | `calendar`, `datetime`  |
 
 ---
 
-## 🎯 Примеры команд
+## 🔵 Files & Automation — 21–30
 
-Скажи голосом:
-
-```
-привет
-который час
-какая сегодня дата
-заряд батареи
-открой ютуб
-найди в интернете погода в москве
-громче
-тише
-яркость на максимум
-пауза
-следующий трек
-сверни всё
-закрой окно
-нажми enter
-скопируй
-выход
-```
-
-Полный список → [`docs/COMMANDS.md`](docs/COMMANDS.md)
+|  # | Project             | Что изучается    |
+| -: | ------------------- | ---------------- |
+| 21 | 📁 File Organizer   | `os`, `shutil`   |
+| 22 | 🔍 File Finder      | `pathlib`        |
+| 23 | 📄 TXT Analyzer     | Чтение файлов    |
+| 24 | 📊 CSV Analyzer     | `csv`            |
+| 25 | 🗂️ JSON Database   | `json`           |
+| 26 | 📑 Report Generator | Работа с файлами |
+| 27 | 🔐 Password Manager | JSON             |
+| 28 | 📦 ZIP Archiver     | `zipfile`        |
+| 29 | 🔎 Duplicate Finder | `hashlib`        |
+| 30 | 🧹 Folder Cleaner   | Автоматизация    |
 
 ---
 
-## 🔧 Настройка слуха под микрофон
+## 🟣 Images — 31–40
 
-Если Vosk **не слышит** — уменьши порог:
-
-```yaml
-stt:
-  vad_energy_threshold: 150   # было 300
-```
-
-Если слышит **слишком много шума** — увеличь:
-
-```yaml
-stt:
-  vad_energy_threshold: 600
-```
-
-Подробнее → [`docs/CONFIG.md`](docs/CONFIG.md)
+|  # | Project                    | Что изучается |
+| -: | -------------------------- | ------------- |
+| 31 | 🖼️ Image Converter        | Pillow        |
+| 32 | ✂️ Image Cropper           | Pillow        |
+| 33 | 📐 Image Resizer           | Pillow        |
+| 34 | 🎨 Color Palette Generator | Pillow        |
+| 35 | 🖌️ Drawing App            | Tkinter       |
+| 36 | 🖼️ ASCII Art Generator    | Pillow        |
+| 37 | 🔲 QR Code Generator       | `qrcode`      |
+| 38 | 📷 Image Metadata Viewer   | Pillow        |
+| 39 | 🧩 Image Collage           | Pillow        |
+| 40 | 😂 Meme Generator          | Pillow        |
 
 ---
 
-## 🧩 Написание плагинов
+## 🔴 Camera & Audio — 41–50
 
-Создай файл `commands/plugins/my_plugin.py`:
-
-```python
-class MyCommand:
-    name = "my_command"
-
-    def matches(self, text: str) -> bool:
-        return "моя команда" in text
-
-    def execute(self, text, ctx) -> bool:
-        ctx.say("Выполняю!")
-        return True
-
-
-def register(registry):
-    registry.register(MyCommand())
-```
-
-Плагин **автоматически загрузится** при старте. Подробнее → [`docs/PLUGINS.md`](docs/PLUGINS.md)
+|  # | Project              | Что изучается      |
+| -: | -------------------- | ------------------ |
+| 41 | 🎥 Camera App        | OpenCV             |
+| 42 | ✏️ Camera Drawing    | OpenCV             |
+| 43 | 🎯 Color Tracking    | OpenCV             |
+| 44 | 🙂 Face Detection    | OpenCV             |
+| 45 | 👁️ Object Detection | Computer Vision    |
+| 46 | 🎙️ Voice Recorder   | `sounddevice`      |
+| 47 | 🔊 Audio Player      | `pygame`           |
+| 48 | 🎵 Audio Analyzer    | NumPy              |
+| 49 | 🗣️ Speech-to-Text   | Speech Recognition |
+| 50 | 🔊 Text-to-Speech    | `pyttsx3`          |
 
 ---
 
-## 🐛 Известные проблемы
+## 🟡 GUI — 51–60
 
-| Проблема | Решение |
-|---|---|
-| `Model has not started loading` | Загружена вторая модель в LM Studio — Eject |
-| `Unexpected endpoint` в LM Studio | Проверь, что в `config.yaml` URL заканчивается на `/v1` |
-| CORS при открытии аватара | Использовать HTTP-сервер, а не `file://` (уже так и есть) |
-| Vosk не распознаёт | Уменьши `vad_energy_threshold` в config |
-| Ассистент не слышит | Проверь микрофон: `python -m sounddevice` |
-
----
-
-## 📚 Документация
-
-| Документ | О чём |
-|---|---|
-| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Архитектура, каждый файл и папка |
-| [MODELS.md](docs/MODELS.md) | Где скачать модели |
-| [COMMANDS.md](docs/COMMANDS.md) | Все голосовые команды |
-| [CONFIG.md](docs/CONFIG.md) | Описание `config.yaml` |
-| [PLUGINS.md](docs/PLUGINS.md) | Как писать плагины |
+|  # | Project                   | Что изучается    |
+| -: | ------------------------- | ---------------- |
+| 51 | 🧮 GUI Calculator         | Tkinter          |
+| 52 | 📝 GUI Notes              | Tkinter          |
+| 53 | ⏱️ GUI Pomodoro           | Tkinter          |
+| 54 | 📋 GUI To-Do              | Tkinter          |
+| 55 | 📊 GUI Dashboard          | Tkinter          |
+| 56 | 🧮 Scientific Calculator  | Tkinter          |
+| 57 | 🎨 Color Picker           | Tkinter          |
+| 58 | 📁 File Explorer          | Tkinter          |
+| 59 | 🔐 GUI Password Generator | Tkinter          |
+| 60 | 📷 Photo Viewer           | Tkinter + Pillow |
 
 ---
 
-## 📜 Лицензия
+## 🎮 Games — 61–70
 
-MIT — используй, форкай, улучшай.
+|  # | Project            | Что изучается |
+| -: | ------------------ | ------------- |
+| 61 | 🐍 Snake           | Pygame        |
+| 62 | 🏓 Pong            | Pygame        |
+| 63 | 👾 Space Shooter   | Pygame        |
+| 64 | 🧱 Breakout        | Pygame        |
+| 65 | 🚗 Mini Racing     | Pygame        |
+| 66 | 🪙 Coin Collector  | Pygame        |
+| 67 | 🧟 Zombie Survival | Pygame        |
+| 68 | 🗺️ Maze Game      | Pygame        |
+| 69 | ⚔️ Mini RPG        | Pygame        |
+| 70 | 🧠 Memory Game     | Pygame        |
 
 ---
 
-## 🙏 Благодарности
+## 📊 Data Science — 71–80
 
-- [Vosk](https://alphacephei.com/vosk/) — распознавание речи
-- [Silero](https://github.com/snakers4/silero-models) — синтез речи
-- [LM Studio](https://lmstudio.ai/) — локальный LLM-сервер
-- [OpenAI Python SDK](https://github.com/openai/openai-python) — клиент
+|  # | Project                  | Что изучается       |
+| -: | ------------------------ | ------------------- |
+| 71 | 🔢 NumPy Calculator      | NumPy               |
+| 72 | 📊 NumPy Statistics      | NumPy               |
+| 73 | 🧮 Matrix Playground     | NumPy               |
+| 74 | 📈 Chart Generator       | Matplotlib          |
+| 75 | 📊 CSV Visualization     | Pandas + Matplotlib |
+| 76 | 🧹 Dataset Cleaner       | Pandas              |
+| 77 | 📊 Dataset Explorer      | Pandas              |
+| 78 | 🌡️ Temperature Analysis | Pandas              |
+| 79 | 💰 Expense Analysis      | Pandas              |
+| 80 | 📈 Stock Analyzer        | Pandas + Matplotlib |
+
+---
+
+## 🌐 APIs, Parsing & Bots — 81–90
+
+|  # | Project                  | Что изучается          |
+| -: | ------------------------ | ---------------------- |
+| 81 | 🌐 HTTP Client           | Requests               |
+| 82 | 🔎 API Explorer          | Requests + JSON        |
+| 83 | 🌦️ Weather App          | API                    |
+| 84 | 📰 News Reader           | API                    |
+| 85 | 🐙 GitHub Profile Viewer | GitHub API             |
+| 86 | 🔗 URL Shortener         | API                    |
+| 87 | 🕷️ Website Parser       | BeautifulSoup          |
+| 88 | 🔍 Website Link Checker  | Requests               |
+| 89 | 📄 HTML Table Parser     | BeautifulSoup + Pandas |
+| 90 | 🤖 Telegram Bot          | Telegram API           |
+
+---
+
+## 🤖 Machine Learning & AI — 91–100
+
+|   # | Project                      | Что изучается       |
+| --: | ---------------------------- | ------------------- |
+|  91 | 🧠 Text Classifier           | Scikit-learn        |
+|  92 | 📧 Spam Detector             | Machine Learning    |
+|  93 | 😊 Sentiment Analyzer        | NLP                 |
+|  94 | 🔢 Digit Recognizer          | Machine Learning    |
+|  95 | 🤖 Recommendation System     | Pandas + ML         |
+|  96 | 🖼️ Image Classifier         | Computer Vision     |
+|  97 | 💬 Mini AI Chatbot           | AI API / NLP        |
+|  98 | 🎙️ Voice Assistant          | Speech + TTS        |
+|  99 | 🧠 Personal Knowledge Search | Embeddings / Search |
+| 100 | 🤖 Mini AI Assistant         | Integration         |
+
+---
+
+# 🏁 The Goal
+
+Этот репозиторий — мой личный путь от простых Python-программ до более сложных приложений, работы с данными, API, Computer Vision, Machine Learning и AI.
+
+**100 проектов — это не конечная точка.**
+
+Это 100 небольших практических шагов, которые помогут мне лучше понять Python.
+
+> **Build. Learn. Experiment. Repeat.**
+
+## 🐍 100 Days. 100 Projects. One Python Journey.

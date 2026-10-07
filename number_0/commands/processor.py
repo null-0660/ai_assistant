@@ -4,9 +4,9 @@
 from dataclasses import dataclass
 from typing import List
 
-from audio.tts import TTSEngine
-from commands.registry import CommandRegistry
-from core.logger import log
+from number_nol.audio.tts import TTSEngine
+from number_nol.commands.registry import CommandRegistry
+from number_nol.core.logger import log
 
 
 @dataclass

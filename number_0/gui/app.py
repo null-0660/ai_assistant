@@ -14,13 +14,13 @@ from typing import Optional
 import tkinter as tk
 from tkinter import font as tkfont
 
-from core.config_loader import LegionConfig
-from core.logger import log
-from core.avatar_server import AvatarServer
-from gui.log_handler import QueueLogHandler
-from gui.chat_engine import ChatEngine
-from gui import theme as T
-from core.assistant import LegionAssistant
+from number_nol.core.config_loader import LegionConfig
+from number_nol.core.logger import log
+from number_nol.core.avatar_server import AvatarServer
+from number_nol.gui.log_handler import QueueLogHandler
+from number_nol.gui.chat_engine import ChatEngine
+from number_nol.gui import theme as T
+from number_nol.core.assistant import LegionAssistant
 
 
 class LegionGUI:

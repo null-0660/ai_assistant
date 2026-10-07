@@ -6,7 +6,7 @@ import os
 import json
 from typing import List, Dict
 
-from core.logger import log
+from number_nol.core.logger import log
 
 
 class DialogueManager:

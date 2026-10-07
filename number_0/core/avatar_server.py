@@ -6,7 +6,7 @@ import json
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from core.logger import log
+from number_nol.core.logger import log
 
 
 class _AvatarHandler(BaseHTTPRequestHandler):

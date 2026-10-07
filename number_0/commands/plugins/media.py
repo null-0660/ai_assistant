@@ -4,7 +4,7 @@
 import pyautogui
 import screen_brightness_control as sbc
 
-from core.logger import log
+from number_nol.core.logger import log
 
 
 class MuteCommand:

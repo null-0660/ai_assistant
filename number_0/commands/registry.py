@@ -6,10 +6,10 @@ import pkgutil
 import importlib
 from typing import List, Protocol, TYPE_CHECKING
 
-from core.logger import log
+from number_nol.core.logger import log
 
 if TYPE_CHECKING:
-    from commands.processor import CommandContext
+    from number_nol.commands.processor import CommandContext
 
 
 class Command(Protocol):

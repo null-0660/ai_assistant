@@ -9,7 +9,7 @@ import subprocess
 
 import psutil
 
-from core.logger import log
+from number_nol.core.logger import log
 
 
 MONTHS_RU = [
