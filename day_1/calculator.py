@@ -15,6 +15,6 @@ def calculator(a:int, b:int, operation:str):
     else:
         result = 'Ошибка: неверная операция'
 
-    return print(result)
+    print(result)
 
 calculator(2, 2, '^')
