@@ -51,7 +51,7 @@
 | -: | -------------------------- | ----------------------- |
 | 01 | 🧮 CLI Calculator ✔️          | Условия, циклы, функции |
 | 02 | 🎲 Random Number Generator ✔️ | `random`, циклы         |
-| 03 | 🔢 Guess the Number        | `while`, условия        |
+| 03 | 🔢 Guess the Number ✔️        | `while`, условия        |
 | 04 | ✊ Rock Paper Scissors      | Логика, `random`        |
 | 05 | 🔐 Password Generator      | Строки, `random`        |
 | 06 | ⏱️ Countdown Timer         | `time`                  |
