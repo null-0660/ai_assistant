@@ -1,4 +1,7 @@
-# Expense Tracker — v1: меню и выход
+# Expense Tracker — v2: добавление расхода
+
+expenses = []   # список словарей: {'amount': 100, 'category': 'еда'}
+
 
 def show_menu():
     print()
@@ -11,6 +14,29 @@ def show_menu():
     print()
 
 
+def add_expense():
+    """Спрашивает сумму и категорию, добавляет в список."""
+    amount_str = input("Сумма: ").strip()
+
+    try:
+        amount = float(amount_str)
+    except ValueError:
+        print("Ошибка: сумма должна быть числом.")
+        return
+
+    if amount <= 0:
+        print("Ошибка: сумма должна быть больше нуля.")
+        return
+
+    category = input("Категория (еда/транспорт/развлечения/другое): ").strip().lower()
+    if not category:
+        print("Ошибка: категория не может быть пустой.")
+        return
+
+    expenses.append({'amount': amount, 'category': category})
+    print(f"Добавлено: {amount} ({category})")
+
+
 def main():
     while True:
         show_menu()
@@ -20,7 +46,7 @@ def main():
             print("Выход.")
             break
         elif choice == '1':
-            print("(пока не работает)")
+            add_expense()
         elif choice == '2':
             print("(пока не работает)")
         elif choice == '3':
