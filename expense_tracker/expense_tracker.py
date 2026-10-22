@@ -1,4 +1,4 @@
-# Expense Tracker — v3: показать все расходы
+# Expense Tracker — v4: сумма и категории
 
 expenses = []
 
@@ -35,7 +35,6 @@ def add_expense():
 
 
 def show_all():
-    """Печатает все расходы с номерами."""
     if not expenses:
         print("Список пуст.")
         return
@@ -45,6 +44,36 @@ def show_all():
     for i, exp in enumerate(expenses, start=1):
         print(f"{i}. {exp['amount']} — {exp['category']}")
     print(f"Всего записей: {len(expenses)}")
+
+
+def show_total():
+    """Печатает общую сумму расходов."""
+    if not expenses:
+        print("Список пуст.")
+        return
+
+    total = 0
+    for exp in expenses:
+        total += exp['amount']
+
+    print(f"Общая сумма: {total}")
+
+
+def show_by_category():
+    """Группирует расходы по категориям и печатает суммы."""
+    if not expenses:
+        print("Список пуст.")
+        return
+
+    summary = {}
+    for exp in expenses:
+        cat = exp['category']
+        summary[cat] = summary.get(cat, 0) + exp['amount']
+
+    print()
+    print("--- По категориям ---")
+    for cat, total in summary.items():
+        print(f"{cat}: {total}")
 
 
 def main():
@@ -60,9 +89,9 @@ def main():
         elif choice == '2':
             show_all()
         elif choice == '3':
-            print("(пока не работает)")
+            show_total()
         elif choice == '4':
-            print("(пока не работает)")
+            show_by_category()
         else:
             print("Неверный выбор.")
 
