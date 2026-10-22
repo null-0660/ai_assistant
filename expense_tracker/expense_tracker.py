@@ -1,6 +1,34 @@
-# Expense Tracker — v4: сумма и категории
+# Expense Tracker — v5: сохранение в JSON
 
+import json
+import os
+
+DATA_FILE = os.path.join(os.path.dirname(__file__), 'expenses.json')
 expenses = []
+
+
+def load_data():
+    """Загружает расходы из файла, если он есть."""
+    global expenses
+    if not os.path.exists(DATA_FILE):
+        expenses = []
+        return
+
+    try:
+        with open(DATA_FILE, 'r', encoding='utf-8') as f:
+            expenses = json.load(f)
+    except (json.JSONDecodeError, OSError):
+        print("Ошибка чтения файла. Начинаем с пустого списка.")
+        expenses = []
+
+
+def save_data():
+    """Сохраняет расходы в файл."""
+    try:
+        with open(DATA_FILE, 'w', encoding='utf-8') as f:
+            json.dump(expenses, f, ensure_ascii=False, indent=2)
+    except OSError:
+        print("Ошибка сохранения файла.")
 
 
 def show_menu():
@@ -31,6 +59,7 @@ def add_expense():
         return
 
     expenses.append({'amount': amount, 'category': category})
+    save_data()
     print(f"Добавлено: {amount} ({category})")
 
 
@@ -38,7 +67,6 @@ def show_all():
     if not expenses:
         print("Список пуст.")
         return
-
     print()
     print("--- Все расходы ---")
     for i, exp in enumerate(expenses, start=1):
@@ -47,29 +75,23 @@ def show_all():
 
 
 def show_total():
-    """Печатает общую сумму расходов."""
     if not expenses:
         print("Список пуст.")
         return
-
     total = 0
     for exp in expenses:
         total += exp['amount']
-
     print(f"Общая сумма: {total}")
 
 
 def show_by_category():
-    """Группирует расходы по категориям и печатает суммы."""
     if not expenses:
         print("Список пуст.")
         return
-
     summary = {}
     for exp in expenses:
         cat = exp['category']
         summary[cat] = summary.get(cat, 0) + exp['amount']
-
     print()
     print("--- По категориям ---")
     for cat, total in summary.items():
@@ -77,6 +99,7 @@ def show_by_category():
 
 
 def main():
+    load_data()
     while True:
         show_menu()
         choice = input("Выбери пункт (1-5): ").strip()
