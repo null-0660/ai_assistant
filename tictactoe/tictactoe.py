@@ -1,23 +1,46 @@
-# Крестики-нолики — v4: счёт и replay
+# Крестики-нолики — v5: цвета и рамка
 
 import os
+
+
+# ANSI-коды цветов
+RESET = '\033[0m'
+RED = '\033[91m'
+BLUE = '\033[94m'
+CYAN = '\033[96m'
+YELLOW = '\033[93m'
+GREEN = '\033[92m'
 
 
 def clear():
     os.system('cls' if os.name == 'nt' else 'clear')
 
 
+def colorize(cell):
+    """Красит X красным, O синим, пустую клетку — жёлтым номером."""
+    if cell == 'X':
+        return f"{RED}X{RESET}"
+    if cell == 'O':
+        return f"{BLUE}O{RESET}"
+    return f"{YELLOW}{cell}{RESET}"
+
+
 def print_board(board):
-    """Печатает доску. Пустые клетки показывает номерами."""
+    """Печатает доску с рамкой и цветами."""
     print()
+    print(f"{CYAN}+-----------+{RESET}")
     for i in range(0, 9, 3):
         row = []
         for j in range(3):
             cell = board[i + j]
-            row.append(str(i + j + 1) if cell == ' ' else cell)
-        print(f" {row[0]} | {row[1]} | {row[2]} ")
+            if cell == ' ':
+                row.append(colorize(str(i + j + 1)))
+            else:
+                row.append(colorize(cell))
+        print(f"{CYAN}|{RESET} {row[0]} {CYAN}|{RESET} {row[1]} {CYAN}|{RESET} {row[2]} {CYAN}|{RESET}")
         if i < 6:
-            print("---+---+---")
+            print(f"{CYAN}+---+---+---+{RESET}")
+    print(f"{CYAN}+-----------+{RESET}")
     print()
 
 
@@ -48,8 +71,9 @@ def play_game():
 
     while True:
         clear()
+        print(f"{GREEN}=== КРЕСТИКИ-НОЛИКИ ==={RESET}")
         print_board(board)
-        print(f"Ход игрока {player}")
+        print(f"Ход игрока: {colorize(player)}")
 
         move = input("Номер клетки (1-9) или exit: ")
 
@@ -80,14 +104,14 @@ def play_game():
         if check_win(board, player):
             clear()
             print_board(board)
-            print(f"Игрок {player} победил!")
+            print(f"{GREEN}Игрок {colorize(player)} победил!{RESET}")
             input("Enter чтобы продолжить...")
             return player
 
         if is_draw(board):
             clear()
             print_board(board)
-            print("Ничья!")
+            print(f"{YELLOW}Ничья!{RESET}")
             input("Enter чтобы продолжить...")
             return 'draw'
 
@@ -100,8 +124,9 @@ def main():
 
     while True:
         clear()
-        print("=== КРЕСТИКИ-НОЛИКИ ===")
-        print(f"Счёт: X = {wins['X']}, O = {wins['O']}, ничьих = {draws}")
+        print(f"{GREEN}=== КРЕСТИКИ-НОЛИКИ ==={RESET}")
+        print(f"Счёт: {RED}X{RESET} = {wins['X']}, "
+              f"{BLUE}O{RESET} = {wins['O']}, ничьих = {draws}")
         print()
 
         result = play_game()
@@ -119,7 +144,8 @@ def main():
             break
 
     print()
-    print(f"Итог: X = {wins['X']}, O = {wins['O']}, ничьих = {draws}")
+    print(f"Итог: {RED}X{RESET} = {wins['X']}, "
+          f"{BLUE}O{RESET} = {wins['O']}, ничьих = {draws}")
 
 
 main()
