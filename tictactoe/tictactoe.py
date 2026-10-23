@@ -1,4 +1,4 @@
-# Крестики-нолики — v3: интерфейс, счёт, replay
+# Крестики-нолики — v3: интерфейс (clear, номера клеток, паузы)
 
 import os
 
@@ -41,85 +41,55 @@ def stop(text):
     return text.lower().strip() in ('exit', 'стоп')
 
 
-def play_game():
-    """Одна партия. Возвращает 'X', 'O', 'draw' или None (exit)."""
-    board = [' '] * 9
-    player = 'X'
+board = [' '] * 9
+player = 'X'
 
-    while True:
+while True:
+    clear()
+    print_board(board)
+    print(f"Ход игрока {player}")
+
+    move = input("Номер клетки (1-9) или exit: ")
+
+    if stop(move):
+        print("Выход.")
+        break
+
+    try:
+        move = int(move)
+    except ValueError:
+        print("Ошибка: введите число.")
+        input("Enter чтобы продолжить...")
+        continue
+
+    if move < 1 or move > 9:
+        print("Ошибка: число от 1 до 9.")
+        input("Enter чтобы продолжить...")
+        continue
+
+    index = move - 1
+
+    if board[index] != ' ':
+        print("Клетка занята.")
+        input("Enter чтобы продолжить...")
+        continue
+
+    board[index] = player
+
+    if check_win(board, player):
         clear()
         print_board(board)
-        print(f"Ход игрока {player}")
+        print(f"Игрок {player} победил!")
+        input("Enter чтобы продолжить...")
+        break
 
-        move = input("Номер клетки (1-9) или exit: ")
-
-        if stop(move):
-            return None
-
-        try:
-            move = int(move)
-        except ValueError:
-            print("Ошибка: введите число.")
-            input("Enter чтобы продолжить...")
-            continue
-
-        if move < 1 or move > 9:
-            print("Ошибка: число от 1 до 9.")
-            input("Enter чтобы продолжить...")
-            continue
-
-        index = move - 1
-
-        if board[index] != ' ':
-            print("Клетка занята.")
-            input("Enter чтобы продолжить...")
-            continue
-
-        board[index] = player
-
-        if check_win(board, player):
-            clear()
-            print_board(board)
-            print(f"Игрок {player} победил!")
-            input("Enter чтобы продолжить...")
-            return player
-
-        if is_draw(board):
-            clear()
-            print_board(board)
-            print("Ничья!")
-            input("Enter чтобы продолжить...")
-            return 'draw'
-
-        player = 'O' if player == 'X' else 'X'
-
-
-def main():
-    wins = {'X': 0, 'O': 0}
-    draws = 0
-
-    while True:
+    if is_draw(board):
         clear()
-        print("=== КРЕСТИКИ-НОЛИКИ ===")
-        print(f"Счёт: X = {wins['X']}, O = {wins['O']}, ничьих = {draws}")
-        print()
+        print_board(board)
+        print("Ничья!")
+        input("Enter чтобы продолжить...")
+        break
 
-        result = play_game()
+    player = 'O' if player == 'X' else 'X'
 
-        if result is None:
-            print("Выход.")
-            break
-        elif result == 'draw':
-            draws += 1
-        else:
-            wins[result] += 1
-
-        again = input("Сыграть ещё раз? (да/yes или exit): ")
-        if stop(again):
-            break
-
-    print()
-    print(f"Итог: X = {wins['X']}, O = {wins['O']}, ничьих = {draws}")
-
-
-main()
+print("Игра окончена.")
