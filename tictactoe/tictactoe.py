@@ -1,4 +1,4 @@
-# Крестики-нолики — v6: два режима (2 игрока / компьютер)
+# Крестики-нолики — v7: красивое меню и финальный экран
 
 import os
 import random
@@ -11,6 +11,8 @@ BLUE = '\033[94m'
 CYAN = '\033[96m'
 YELLOW = '\033[93m'
 GREEN = '\033[92m'
+BOLD = '\033[1m'
+DIM = '\033[2m'
 
 
 def clear():
@@ -19,10 +21,22 @@ def clear():
 
 def colorize(cell):
     if cell == 'X':
-        return f"{RED}X{RESET}"
+        return f"{RED}{BOLD}X{RESET}"
     if cell == 'O':
-        return f"{BLUE}O{RESET}"
+        return f"{BLUE}{BOLD}O{RESET}"
     return f"{YELLOW}{cell}{RESET}"
+
+
+def print_header(subtitle=""):
+    """Красивый заголовок с рамкой."""
+    width = 40
+    print()
+    print(f"{CYAN}+{'=' * width}+{RESET}")
+    print(f"{CYAN}|{RESET}{GREEN}{BOLD}{'КРЕСТИКИ-НОЛИКИ'.center(width)}{RESET}{CYAN}|{RESET}")
+    if subtitle:
+        print(f"{CYAN}|{RESET}{DIM}{subtitle.center(width)}{RESET}{CYAN}|{RESET}")
+    print(f"{CYAN}+{'=' * width}+{RESET}")
+    print()
 
 
 def print_board(board):
@@ -64,12 +78,10 @@ def stop(text):
 
 
 def free_cells(board):
-    """Список индексов свободных клеток."""
     return [i for i in range(9) if board[i] == ' ']
 
 
 def find_winning_move(board, player):
-    """Если player может выиграть следующим ходом — вернуть индекс. Иначе None."""
     for i in free_cells(board):
         test = board[:]
         test[i] = player
@@ -79,31 +91,20 @@ def find_winning_move(board, player):
 
 
 def computer_move(board, comp, human):
-    """
-    Средний уровень:
-    1. Выиграть, если можно.
-    2. Заблокировать победу человека.
-    3. Занять центр.
-    4. Случайная свободная клетка.
-    """
     win = find_winning_move(board, comp)
     if win is not None:
         return win
-
     block = find_winning_move(board, human)
     if block is not None:
         return block
-
     if board[4] == ' ':
         return 4
-
     return random.choice(free_cells(board))
 
 
 def get_human_move(board, player):
-    """Спрашивает ход у человека. Возвращает индекс или None (exit)."""
     while True:
-        move = input("Номер клетки (1-9) или exit: ")
+        move = input(f"  {colorize(player)} → номер клетки (1-9) или exit: ")
 
         if stop(move):
             return None
@@ -111,48 +112,42 @@ def get_human_move(board, player):
         try:
             move = int(move)
         except ValueError:
-            print("Ошибка: введите число.")
-            input("Enter чтобы продолжить...")
+            print("  Ошибка: введите число.")
+            input("  Enter чтобы продолжить...")
             return -1
 
         if move < 1 or move > 9:
-            print("Ошибка: число от 1 до 9.")
-            input("Enter чтобы продолжить...")
+            print("  Ошибка: число от 1 до 9.")
+            input("  Enter чтобы продолжить...")
             return -1
 
         index = move - 1
 
         if board[index] != ' ':
-            print("Клетка занята.")
-            input("Enter чтобы продолжить...")
+            print("  Клетка занята.")
+            input("  Enter чтобы продолжить...")
             return -1
 
         return index
 
 
 def play_game(vs_computer):
-    """
-    Одна партия.
-    vs_computer=True: X — человек, O — компьютер.
-    Возвращает 'X', 'O', 'draw' или None (exit).
-    """
     board = [' '] * 9
     player = 'X'
 
     while True:
         clear()
-        print(f"{GREEN}=== КРЕСТИКИ-НОЛИКИ ==={RESET}")
         if vs_computer:
-            print(f"Ты: {colorize('X')}   Компьютер: {colorize('O')}")
+            print_header("Ты — X   |   Компьютер — O")
+        else:
+            print_header("Два игрока")
         print_board(board)
-        print(f"Ход игрока: {colorize(player)}")
 
         if vs_computer and player == 'O':
-            # Ход компьютера
             index = computer_move(board, 'O', 'X')
             board[index] = 'O'
-            print(f"Компьютер сходил в клетку {index + 1}")
-            input("Enter чтобы продолжить...")
+            print(f"  {BLUE}Компьютер{RESET} сходил в клетку {YELLOW}{index + 1}{RESET}")
+            input("  Enter чтобы продолжить...")
         else:
             index = get_human_move(board, player)
             if index is None:
@@ -163,35 +158,36 @@ def play_game(vs_computer):
 
         if check_win(board, player):
             clear()
+            print_header("ПОБЕДА")
             print_board(board)
             if vs_computer and player == 'O':
-                print(f"{RED}Компьютер победил!{RESET}")
+                print(f"  {RED}{BOLD}Компьютер победил!{RESET}")
             else:
-                print(f"{GREEN}Игрок {colorize(player)} победил!{RESET}")
-            input("Enter чтобы продолжить...")
+                print(f"  {GREEN}{BOLD}Игрок {colorize(player)} победил!{RESET}")
+            input("\n  Enter чтобы продолжить...")
             return player
 
         if is_draw(board):
             clear()
+            print_header("НИЧЬЯ")
             print_board(board)
-            print(f"{YELLOW}Ничья!{RESET}")
-            input("Enter чтобы продолжить...")
+            print(f"  {YELLOW}{BOLD}Ничья!{RESET}")
+            input("\n  Enter чтобы продолжить...")
             return 'draw'
 
         player = 'O' if player == 'X' else 'X'
 
 
 def choose_mode():
-    """Спрашивает режим. Возвращает True/False или None (exit)."""
     while True:
         clear()
-        print(f"{GREEN}=== КРЕСТИКИ-НОЛИКИ ==={RESET}")
-        print("1. Два игрока")
-        print("2. Против компьютера (средний)")
-        print("3. Выход")
+        print_header("Выбери режим")
+        print(f"  {CYAN}1.{RESET} Два игрока")
+        print(f"  {CYAN}2.{RESET} Против компьютера {DIM}(средний){RESET}")
+        print(f"  {CYAN}3.{RESET} Выход")
         print()
 
-        choice = input("Выбери режим (1-3): ").strip()
+        choice = input("  → твой выбор (1-3): ").strip()
 
         if choice == '1':
             return False
@@ -200,8 +196,8 @@ def choose_mode():
         elif choice == '3':
             return None
         else:
-            print("Неверный выбор.")
-            input("Enter чтобы продолжить...")
+            print("  Неверный выбор.")
+            input("  Enter чтобы продолжить...")
 
 
 def main():
@@ -224,18 +220,24 @@ def main():
                 wins[result] += 1
 
             clear()
-            print(f"{GREEN}=== КРЕСТИКИ-НОЛИКИ ==={RESET}")
-            print(f"Счёт: {RED}X{RESET} = {wins['X']}, "
-                  f"{BLUE}O{RESET} = {wins['O']}, ничьих = {draws}")
+            print_header("СЧЁТ")
+            print(f"  {RED}{BOLD}X{RESET} = {wins['X']}")
+            print(f"  {BLUE}{BOLD}O{RESET} = {wins['O']}")
+            print(f"  {YELLOW}Ничьих{RESET} = {draws}")
             print()
 
-            again = input("Сыграть ещё раз? (да/yes или exit): ")
+            again = input("  Сыграть ещё раз? (да/yes или exit): ")
             if stop(again):
                 break
 
+    clear()
+    print_header("ИТОГ")
+    print(f"  {RED}{BOLD}X{RESET} = {wins['X']}")
+    print(f"  {BLUE}{BOLD}O{RESET} = {wins['O']}")
+    print(f"  {YELLOW}Ничьих{RESET} = {draws}")
     print()
-    print(f"Итог: {RED}X{RESET} = {wins['X']}, "
-          f"{BLUE}O{RESET} = {wins['O']}, ничьих = {draws}")
+    print(f"  {DIM}Спасибо за игру!{RESET}")
+    print()
 
 
 main()
