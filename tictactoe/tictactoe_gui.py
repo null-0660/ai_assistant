@@ -1,4 +1,4 @@
-# Крестики-нолики GUI — v4: режимы (2 игрока / бот)
+# Крестики-нолики GUI — v5: история и итог
 
 import tkinter as tk
 from tkinter import messagebox
@@ -24,6 +24,7 @@ class TicTacToe:
 
         self.wins = {'X': 0, 'O': 0}
         self.draws = 0
+        self.games_played = 0
         self.vs_computer = False
 
         self.show_menu()
@@ -33,7 +34,6 @@ class TicTacToe:
             widget.destroy()
 
     def show_menu(self):
-        """Стартовое меню: выбор режима."""
         self.clear_window()
 
         tk.Label(
@@ -61,6 +61,14 @@ class TicTacToe:
         ).pack(pady=8)
 
         tk.Button(
+            self.root, text="Итог игр",
+            font=('Arial', 14, 'bold'),
+            bg=LABEL_COLOR, fg=BG_COLOR,
+            relief='flat', bd=0, padx=30, pady=10,
+            command=self.show_stats
+        ).pack(pady=8)
+
+        tk.Button(
             self.root, text="Выход",
             font=('Arial', 14, 'bold'),
             bg=X_COLOR, fg=BG_COLOR,
@@ -68,15 +76,51 @@ class TicTacToe:
             command=self.root.destroy
         ).pack(pady=(20, 10))
 
+    def show_stats(self):
+        """Экран итогов."""
+        self.clear_window()
+
+        tk.Label(
+            self.root, text="ИТОГ ИГР",
+            font=('Arial', 20, 'bold'),
+            bg=BG_COLOR, fg=LABEL_COLOR
+        ).pack(pady=(30, 20))
+
+        stats_frame = tk.Frame(self.root, bg=BG_COLOR)
+        stats_frame.pack(pady=10)
+
+        def row(label, value, color=FG_COLOR):
+            frame = tk.Frame(stats_frame, bg=BG_COLOR)
+            frame.pack(pady=5, fill='x')
+            tk.Label(
+                frame, text=label, font=('Arial', 14),
+                bg=BG_COLOR, fg=FG_COLOR, width=18, anchor='w'
+            ).pack(side='left')
+            tk.Label(
+                frame, text=str(value), font=('Arial', 14, 'bold'),
+                bg=BG_COLOR, fg=color, width=6, anchor='e'
+            ).pack(side='right')
+
+        row("Всего партий:", self.games_played)
+        row("Победы X:", self.wins['X'], X_COLOR)
+        row("Победы O:", self.wins['O'], O_COLOR)
+        row("Ничьих:", self.draws)
+
+        tk.Button(
+            self.root, text="Назад",
+            font=('Arial', 14, 'bold'),
+            bg=BTN_BG, fg=FG_COLOR,
+            relief='flat', bd=0, padx=30, pady=10,
+            command=self.show_menu
+        ).pack(pady=(30, 10))
+
     def start_game(self, vs_computer):
-        """Запускает игру с выбранным режимом."""
         self.vs_computer = vs_computer
         self.clear_window()
         self.create_widgets()
         self.reset_game()
 
     def create_widgets(self):
-        # Заголовок
         self.title_label = tk.Label(
             self.root, text="КРЕСТИКИ-НОЛИКИ",
             font=('Arial', 20, 'bold'),
@@ -84,7 +128,6 @@ class TicTacToe:
         )
         self.title_label.grid(row=0, column=0, columnspan=3, pady=(15, 5))
 
-        # Статус
         self.status_label = tk.Label(
             self.root, text="Ход: X",
             font=('Arial', 14),
@@ -92,7 +135,6 @@ class TicTacToe:
         )
         self.status_label.grid(row=1, column=0, columnspan=3, pady=5)
 
-        # Счёт
         self.score_label = tk.Label(
             self.root, text="X: 0   O: 0   Ничьих: 0",
             font=('Arial', 11),
@@ -100,7 +142,6 @@ class TicTacToe:
         )
         self.score_label.grid(row=2, column=0, columnspan=3, pady=5)
 
-        # Кнопки 3x3
         self.buttons_frame = tk.Frame(self.root, bg=BG_COLOR)
         self.buttons_frame.grid(row=3, column=0, columnspan=3, pady=10)
 
@@ -122,7 +163,6 @@ class TicTacToe:
             btn.grid(row=i // 3, column=i % 3, padx=3, pady=3)
             self.buttons.append(btn)
 
-        # Кнопки управления
         control = tk.Frame(self.root, bg=BG_COLOR)
         control.grid(row=4, column=0, columnspan=3, pady=15)
 
@@ -176,17 +216,18 @@ class TicTacToe:
         if self.check_win(self.player):
             self.finish_game(f"Победил {self.player}!", LABEL_COLOR)
             self.wins[self.player] += 1
+            self.games_played += 1
             return
 
         if ' ' not in self.board:
             self.finish_game("Ничья!", FG_COLOR)
             self.draws += 1
+            self.games_played += 1
             return
 
         self.player = 'O' if self.player == 'X' else 'X'
         self.status_label.config(text=f"Ход: {self.player}")
 
-        # Ход компьютера
         if self.vs_computer and self.player == 'O':
             self.root.after(300, self.computer_turn)
 
@@ -201,36 +242,33 @@ class TicTacToe:
         if self.check_win('O'):
             self.finish_game("Компьютер победил!", X_COLOR)
             self.wins['O'] += 1
+            self.games_played += 1
             return
 
         if ' ' not in self.board:
             self.finish_game("Ничья!", FG_COLOR)
             self.draws += 1
+            self.games_played += 1
             return
 
         self.player = 'X'
         self.status_label.config(text="Ход: X")
 
     def computer_move(self):
-        """Средний уровень."""
-        # Выиграть
         for i in range(9):
             if self.board[i] == ' ':
                 test = self.board[:]
                 test[i] = 'O'
                 if self.check_win_list(test, 'O'):
                     return i
-        # Заблокировать
         for i in range(9):
             if self.board[i] == ' ':
                 test = self.board[:]
                 test[i] = 'X'
                 if self.check_win_list(test, 'X'):
                     return i
-        # Центр
         if self.board[4] == ' ':
             return 4
-        # Случайно
         free = [i for i in range(9) if self.board[i] == ' ']
         return random.choice(free)
 
