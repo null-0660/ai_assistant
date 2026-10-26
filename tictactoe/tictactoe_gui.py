@@ -1,13 +1,14 @@
-# Крестики-нолики GUI — v6: темы (тёмная/светлая)
+# Крестики-нолики GUI — v7: 4 скина с градиентами
 
 import tkinter as tk
 from tkinter import messagebox
 import random
 
 
-# Темы
+# 4 скина
 THEMES = {
     'dark': {
+        'name': 'Dark',
         'bg': '#1e1e2e',
         'fg': '#cdd6f4',
         'x': '#f38ba8',
@@ -15,8 +16,10 @@ THEMES = {
         'btn': '#313244',
         'btn_active': '#45475a',
         'label': '#a6e3a1',
+        'gradient': ['#1e1e2e', '#181825', '#11111b'],   # тёмный градиент
     },
     'light': {
+        'name': 'Light',
         'bg': '#eff1f5',
         'fg': '#4c4f69',
         'x': '#d20f39',
@@ -24,8 +27,33 @@ THEMES = {
         'btn': '#ccd0da',
         'btn_active': '#bcc0cc',
         'label': '#40a02b',
+        'gradient': ['#eff1f5', '#e6e9ef', '#dce0e8'],   # светлый градиент
+    },
+    'ocean': {
+        'name': 'Ocean',
+        'bg': '#0a192f',
+        'fg': '#ccd6f6',
+        'x': '#ff6b6b',
+        'o': '#64ffda',
+        'btn': '#112240',
+        'btn_active': '#1a365d',
+        'label': '#64ffda',
+        'gradient': ['#0a192f', '#0d2137', '#112240'],   # синий градиент
+    },
+    'sunset': {
+        'name': 'Sunset',
+        'bg': '#2d1b2e',
+        'fg': '#ffd6e0',
+        'x': '#ff6b9d',
+        'o': '#ffc75f',
+        'btn': '#4a2c4d',
+        'btn_active': '#5c3a5f',
+        'label': '#ffc75f',
+        'gradient': ['#2d1b2e', '#3d2340', '#4a2c4d'],   # закатный градиент
     },
 }
+
+THEME_ORDER = ['dark', 'light', 'ocean', 'sunset']
 
 
 class TicTacToe:
@@ -34,7 +62,8 @@ class TicTacToe:
         self.root.title("Крестики-нолики")
         self.root.resizable(False, False)
 
-        self.theme_name = 'dark'
+        self.theme_index = 0
+        self.theme_name = THEME_ORDER[self.theme_index]
         self.theme = THEMES[self.theme_name]
 
         self.wins = {'X': 0, 'O': 0}
@@ -45,9 +74,10 @@ class TicTacToe:
         self.root.configure(bg=self.theme['bg'])
         self.show_menu()
 
-    def toggle_theme(self):
-        """Переключение темы."""
-        self.theme_name = 'light' if self.theme_name == 'dark' else 'dark'
+    def next_theme(self):
+        """Следующий скин по кругу."""
+        self.theme_index = (self.theme_index + 1) % len(THEME_ORDER)
+        self.theme_name = THEME_ORDER[self.theme_index]
         self.theme = THEMES[self.theme_name]
         self.root.configure(bg=self.theme['bg'])
         self.show_menu()
@@ -56,52 +86,94 @@ class TicTacToe:
         for widget in self.root.winfo_children():
             widget.destroy()
 
+    def make_gradient(self, parent, width=300, height=400):
+        """Рисует вертикальный градиент на Canvas."""
+        canvas = tk.Canvas(
+            parent, width=width, height=height,
+            highlightthickness=0
+        )
+        canvas.pack(fill='both', expand=True)
+
+        colors = self.theme['gradient']
+        steps = height // len(colors)
+
+        # Плавный переход между 3 цветами
+        for i in range(height):
+            # В каком отрезке мы находимся
+            pos = i / height
+            idx = pos * (len(colors) - 1)
+            c1 = int(idx)
+            c2 = min(c1 + 1, len(colors) - 1)
+            frac = idx - c1
+            color = self.interpolate_color(colors[c1], colors[c2], frac)
+            canvas.create_line(0, i, width, i, fill=color)
+
+        return canvas
+
+    @staticmethod
+    def interpolate_color(c1, c2, t):
+        """Смешивает два hex-цвета."""
+        r1, g1, b1 = int(c1[1:3], 16), int(c1[3:5], 16), int(c1[5:7], 16)
+        r2, g2, b2 = int(c2[1:3], 16), int(c2[3:5], 16), int(c2[5:7], 16)
+        r = int(r1 + (r2 - r1) * t)
+        g = int(g1 + (g2 - g1) * t)
+        b = int(b1 + (b2 - b1) * t)
+        return f"#{r:02x}{g:02x}{b:02x}"
+
     def show_menu(self):
         self.clear_window()
         t = self.theme
 
+        # Градиентный фон
+        grad = self.make_gradient(self.root, width=320, height=480)
+        grad.place(x=0, y=0, relwidth=1, relheight=1)
+
+        # Фрейм поверх градиента
+        frame = tk.Frame(self.root, bg=t['bg'])
+        frame.place(relx=0.5, rely=0.5, anchor='center')
+
         tk.Label(
-            self.root, text="КРЕСТИКИ-НОЛИКИ",
+            frame, text="КРЕСТИКИ-НОЛИКИ",
             font=('Arial', 20, 'bold'),
             bg=t['bg'], fg=t['label']
-        ).pack(pady=(30, 20))
+        ).pack(pady=(10, 20))
 
         tk.Button(
-            self.root, text="Два игрока",
+            frame, text="Два игрока",
             font=('Arial', 14, 'bold'),
             bg=t['btn'], fg=t['fg'],
             activebackground=t['btn_active'], activeforeground=t['fg'],
             relief='flat', bd=0, padx=30, pady=10,
             command=lambda: self.start_game(False)
-        ).pack(pady=8)
+        ).pack(pady=6)
 
         tk.Button(
-            self.root, text="Против компьютера",
+            frame, text="Против компьютера",
             font=('Arial', 14, 'bold'),
             bg=t['btn'], fg=t['fg'],
             activebackground=t['btn_active'], activeforeground=t['fg'],
             relief='flat', bd=0, padx=30, pady=10,
             command=lambda: self.start_game(True)
-        ).pack(pady=8)
+        ).pack(pady=6)
 
         tk.Button(
-            self.root, text="Итог игр",
+            frame, text="Итог игр",
             font=('Arial', 14, 'bold'),
             bg=t['label'], fg=t['bg'],
             relief='flat', bd=0, padx=30, pady=10,
             command=self.show_stats
-        ).pack(pady=8)
+        ).pack(pady=6)
 
         tk.Button(
-            self.root, text=f"Тема: {self.theme_name}",
+            frame, text=f"Скин: {t['name']}",
             font=('Arial', 14, 'bold'),
             bg=t['btn'], fg=t['fg'],
             relief='flat', bd=0, padx=30, pady=10,
-            command=self.toggle_theme
-        ).pack(pady=8)
+            command=self.next_theme
+        ).pack(pady=6)
 
         tk.Button(
-            self.root, text="Выход",
+            frame, text="Выход",
             font=('Arial', 14, 'bold'),
             bg=t['x'], fg=t['bg'],
             relief='flat', bd=0, padx=30, pady=10,
@@ -112,24 +184,30 @@ class TicTacToe:
         self.clear_window()
         t = self.theme
 
+        grad = self.make_gradient(self.root, width=320, height=480)
+        grad.place(x=0, y=0, relwidth=1, relheight=1)
+
+        frame = tk.Frame(self.root, bg=t['bg'])
+        frame.place(relx=0.5, rely=0.5, anchor='center')
+
         tk.Label(
-            self.root, text="ИТОГ ИГР",
+            frame, text="ИТОГ ИГР",
             font=('Arial', 20, 'bold'),
             bg=t['bg'], fg=t['label']
-        ).pack(pady=(30, 20))
+        ).pack(pady=(10, 20))
 
-        stats_frame = tk.Frame(self.root, bg=t['bg'])
+        stats_frame = tk.Frame(frame, bg=t['bg'])
         stats_frame.pack(pady=10)
 
         def row(label, value, color=None):
-            frame = tk.Frame(stats_frame, bg=t['bg'])
-            frame.pack(pady=5, fill='x')
+            r = tk.Frame(stats_frame, bg=t['bg'])
+            r.pack(pady=5, fill='x')
             tk.Label(
-                frame, text=label, font=('Arial', 14),
+                r, text=label, font=('Arial', 14),
                 bg=t['bg'], fg=t['fg'], width=18, anchor='w'
             ).pack(side='left')
             tk.Label(
-                frame, text=str(value), font=('Arial', 14, 'bold'),
+                r, text=str(value), font=('Arial', 14, 'bold'),
                 bg=t['bg'], fg=color or t['fg'], width=6, anchor='e'
             ).pack(side='right')
 
@@ -139,7 +217,7 @@ class TicTacToe:
         row("Ничьих:", self.draws)
 
         tk.Button(
-            self.root, text="Назад",
+            frame, text="Назад",
             font=('Arial', 14, 'bold'),
             bg=t['btn'], fg=t['fg'],
             relief='flat', bd=0, padx=30, pady=10,
@@ -155,36 +233,44 @@ class TicTacToe:
     def create_widgets(self):
         t = self.theme
 
+        # Градиентный фон
+        grad = self.make_gradient(self.root, width=340, height=520)
+        grad.place(x=0, y=0, relwidth=1, relheight=1)
+
+        # Фрейм игры
+        frame = tk.Frame(self.root, bg=t['bg'])
+        frame.place(relx=0.5, rely=0.5, anchor='center')
+
         self.title_label = tk.Label(
-            self.root, text="КРЕСТИКИ-НОЛИКИ",
-            font=('Arial', 20, 'bold'),
+            frame, text="КРЕСТИКИ-НОЛИКИ",
+            font=('Arial', 18, 'bold'),
             bg=t['bg'], fg=t['label']
         )
-        self.title_label.grid(row=0, column=0, columnspan=3, pady=(15, 5))
+        self.title_label.grid(row=0, column=0, columnspan=3, pady=(5, 5))
 
         self.status_label = tk.Label(
-            self.root, text="Ход: X",
-            font=('Arial', 14),
+            frame, text="Ход: X",
+            font=('Arial', 13),
             bg=t['bg'], fg=t['fg']
         )
-        self.status_label.grid(row=1, column=0, columnspan=3, pady=5)
+        self.status_label.grid(row=1, column=0, columnspan=3, pady=3)
 
         self.score_label = tk.Label(
-            self.root, text="X: 0   O: 0   Ничьих: 0",
-            font=('Arial', 11),
+            frame, text="X: 0   O: 0   Ничьих: 0",
+            font=('Arial', 10),
             bg=t['bg'], fg=t['fg']
         )
-        self.score_label.grid(row=2, column=0, columnspan=3, pady=5)
+        self.score_label.grid(row=2, column=0, columnspan=3, pady=3)
 
-        self.buttons_frame = tk.Frame(self.root, bg=t['bg'])
-        self.buttons_frame.grid(row=3, column=0, columnspan=3, pady=10)
+        self.buttons_frame = tk.Frame(frame, bg=t['bg'])
+        self.buttons_frame.grid(row=3, column=0, columnspan=3, pady=8)
 
         self.buttons = []
         for i in range(9):
             btn = tk.Button(
                 self.buttons_frame,
                 text=' ',
-                font=('Arial', 26, 'bold'),
+                font=('Arial', 24, 'bold'),
                 width=3,
                 height=1,
                 bg=t['btn'], fg=t['fg'],
@@ -197,35 +283,44 @@ class TicTacToe:
             btn.grid(row=i // 3, column=i % 3, padx=3, pady=3)
             self.buttons.append(btn)
 
-        control = tk.Frame(self.root, bg=t['bg'])
-        control.grid(row=4, column=0, columnspan=3, pady=15)
+        control = tk.Frame(frame, bg=t['bg'])
+        control.grid(row=4, column=0, columnspan=3, pady=10)
 
         tk.Button(
-            control, text="Новая игра",
-            font=('Arial', 12, 'bold'),
+            control, text="Новая",
+            font=('Arial', 11, 'bold'),
             bg=t['label'], fg=t['bg'],
             relief='flat', bd=0,
-            padx=15, pady=5,
+            padx=12, pady=5,
             command=self.reset_game
-        ).pack(side='left', padx=5)
+        ).pack(side='left', padx=3)
 
         tk.Button(
-            control, text="В меню",
-            font=('Arial', 12, 'bold'),
+            control, text="Меню",
+            font=('Arial', 11, 'bold'),
             bg=t['btn'], fg=t['fg'],
             relief='flat', bd=0,
-            padx=15, pady=5,
+            padx=12, pady=5,
             command=self.show_menu
-        ).pack(side='left', padx=5)
+        ).pack(side='left', padx=3)
+
+        tk.Button(
+            control, text="Скин",
+            font=('Arial', 11, 'bold'),
+            bg=t['o'], fg=t['bg'],
+            relief='flat', bd=0,
+            padx=12, pady=5,
+            command=self.next_theme
+        ).pack(side='left', padx=3)
 
         tk.Button(
             control, text="Выход",
-            font=('Arial', 12, 'bold'),
+            font=('Arial', 11, 'bold'),
             bg=t['x'], fg=t['bg'],
             relief='flat', bd=0,
-            padx=15, pady=5,
+            padx=12, pady=5,
             command=self.root.destroy
-        ).pack(side='left', padx=5)
+        ).pack(side='left', padx=3)
 
     def reset_game(self):
         t = self.theme
