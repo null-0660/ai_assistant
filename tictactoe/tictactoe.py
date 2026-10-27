@@ -1,243 +1,329 @@
-# Крестики-нолики — v7: красивое меню и финальный экран
+# Крестики-нолики GUI — v9: имена игроков
 
-import os
+import tkinter as tk
+from tkinter import messagebox, simpledialog
 import random
 
 
-# ANSI-коды цветов
-RESET = '\033[0m'
-RED = '\033[91m'
-BLUE = '\033[94m'
-CYAN = '\033[96m'
-YELLOW = '\033[93m'
-GREEN = '\033[92m'
-BOLD = '\033[1m'
-DIM = '\033[2m'
+THEMES = {
+    'dark': {
+        'name': 'Dark', 'bg': '#1e1e2e', 'fg': '#cdd6f4',
+        'x': '#f38ba8', 'o': '#89b4fa', 'btn': '#313244',
+        'btn_active': '#45475a', 'label': '#a6e3a1',
+        'gradient': ['#1e1e2e', '#181825', '#11111b'],
+    },
+    'light': {
+        'name': 'Light', 'bg': '#eff1f5', 'fg': '#4c4f69',
+        'x': '#d20f39', 'o': '#1e66f5', 'btn': '#ccd0da',
+        'btn_active': '#bcc0cc', 'label': '#40a02b',
+        'gradient': ['#eff1f5', '#e6e9ef', '#dce0e8'],
+    },
+    'ocean': {
+        'name': 'Ocean', 'bg': '#0a192f', 'fg': '#ccd6f6',
+        'x': '#ff6b6b', 'o': '#64ffda', 'btn': '#112240',
+        'btn_active': '#1a365d', 'label': '#64ffda',
+        'gradient': ['#0a192f', '#0d2137', '#112240'],
+    },
+    'sunset': {
+        'name': 'Sunset', 'bg': '#2d1b2e', 'fg': '#ffd6e0',
+        'x': '#ff6b9d', 'o': '#ffc75f', 'btn': '#4a2c4d',
+        'btn_active': '#5c3a5f', 'label': '#ffc75f',
+        'gradient': ['#2d1b2e', '#3d2340', '#4a2c4d'],
+    },
+}
+
+THEME_ORDER = ['dark', 'light', 'ocean', 'sunset']
 
 
-def clear():
-    os.system('cls' if os.name == 'nt' else 'clear')
+class TicTacToe:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Крестики-нолики")
+        self.root.geometry("500x650")
+        self.root.minsize(450, 600)
 
+        self.theme_index = 0
+        self.theme_name = THEME_ORDER[0]
+        self.theme = THEMES[self.theme_name]
 
-def colorize(cell):
-    if cell == 'X':
-        return f"{RED}{BOLD}X{RESET}"
-    if cell == 'O':
-        return f"{BLUE}{BOLD}O{RESET}"
-    return f"{YELLOW}{cell}{RESET}"
+        self.wins = {'X': 0, 'O': 0}
+        self.draws = 0
+        self.games_played = 0
+        self.vs_computer = False
 
+        self.names = {'X': 'Игрок X', 'O': 'Игрок O'}
 
-def print_header(subtitle=""):
-    """Красивый заголовок с рамкой."""
-    width = 40
-    print()
-    print(f"{CYAN}+{'=' * width}+{RESET}")
-    print(f"{CYAN}|{RESET}{GREEN}{BOLD}{'КРЕСТИКИ-НОЛИКИ'.center(width)}{RESET}{CYAN}|{RESET}")
-    if subtitle:
-        print(f"{CYAN}|{RESET}{DIM}{subtitle.center(width)}{RESET}{CYAN}|{RESET}")
-    print(f"{CYAN}+{'=' * width}+{RESET}")
-    print()
+        self.root.configure(bg=self.theme['bg'])
+        self.center_window()
+        self.show_menu()
 
+    def center_window(self):
+        self.root.update_idletasks()
+        w, h = 500, 650
+        sw = self.root.winfo_screenwidth()
+        sh = self.root.winfo_screenheight()
+        self.root.geometry(f"{w}x{h}+{(sw-w)//2}+{(sh-h)//2}")
 
-def print_board(board):
-    print()
-    print(f"{CYAN}+-----------+{RESET}")
-    for i in range(0, 9, 3):
-        row = []
-        for j in range(3):
-            cell = board[i + j]
-            if cell == ' ':
-                row.append(colorize(str(i + j + 1)))
-            else:
-                row.append(colorize(cell))
-        print(f"{CYAN}|{RESET} {row[0]} {CYAN}|{RESET} {row[1]} {CYAN}|{RESET} {row[2]} {CYAN}|{RESET}")
-        if i < 6:
-            print(f"{CYAN}+---+---+---+{RESET}")
-    print(f"{CYAN}+-----------+{RESET}")
-    print()
+    def next_theme(self):
+        self.theme_index = (self.theme_index + 1) % len(THEME_ORDER)
+        self.theme_name = THEME_ORDER[self.theme_index]
+        self.theme = THEMES[self.theme_name]
+        self.root.configure(bg=self.theme['bg'])
+        self.show_menu()
 
+    def clear_window(self):
+        for w in self.root.winfo_children():
+            w.destroy()
 
-def check_win(board, player):
-    lines = [
-        (0, 1, 2), (3, 4, 5), (6, 7, 8),
-        (0, 3, 6), (1, 4, 7), (2, 5, 8),
-        (0, 4, 8), (2, 4, 6),
-    ]
-    for a, b, c in lines:
-        if board[a] == board[b] == board[c] == player:
-            return True
-    return False
+    @staticmethod
+    def interpolate_color(c1, c2, t):
+        r1, g1, b1 = int(c1[1:3],16), int(c1[3:5],16), int(c1[5:7],16)
+        r2, g2, b2 = int(c2[1:3],16), int(c2[3:5],16), int(c2[5:7],16)
+        r = int(r1+(r2-r1)*t); g = int(g1+(g2-g1)*t); b = int(b1+(b2-b1)*t)
+        return f"#{r:02x}{g:02x}{b:02x}"
 
-
-def is_draw(board):
-    return ' ' not in board
-
-
-def stop(text):
-    return text.lower().strip() in ('exit', 'стоп')
-
-
-def free_cells(board):
-    return [i for i in range(9) if board[i] == ' ']
-
-
-def find_winning_move(board, player):
-    for i in free_cells(board):
-        test = board[:]
-        test[i] = player
-        if check_win(test, player):
-            return i
-    return None
-
-
-def computer_move(board, comp, human):
-    win = find_winning_move(board, comp)
-    if win is not None:
-        return win
-    block = find_winning_move(board, human)
-    if block is not None:
-        return block
-    if board[4] == ' ':
-        return 4
-    return random.choice(free_cells(board))
-
-
-def get_human_move(board, player):
-    while True:
-        move = input(f"  {colorize(player)} → номер клетки (1-9) или exit: ")
-
-        if stop(move):
-            return None
-
+    def apply_gradient(self, frame, height=650, width=500):
         try:
-            move = int(move)
-        except ValueError:
-            print("  Ошибка: введите число.")
-            input("  Enter чтобы продолжить...")
-            return -1
+            colors = self.theme['gradient']
+            img = tk.PhotoImage(width=width, height=height)
+            step = 2
+            for y in range(0, height, step):
+                pos = y / height
+                idx = pos * (len(colors)-1)
+                c1 = int(idx); c2 = min(c1+1, len(colors)-1)
+                color = self.interpolate_color(colors[c1], colors[c2], idx-c1)
+                img.put(color, to=(0, y, width, min(y+step, height)))
+            lbl = tk.Label(frame, image=img, bd=0, highlightthickness=0)
+            lbl.image = img
+            lbl.place(x=0, y=0, relwidth=1, relheight=1)
+        except Exception as e:
+            print(f"gradient error: {e}")
 
-        if move < 1 or move > 9:
-            print("  Ошибка: число от 1 до 9.")
-            input("  Enter чтобы продолжить...")
-            return -1
+    def show_menu(self):
+        self.clear_window()
+        t = self.theme
+        bg = tk.Frame(self.root, bg=t['bg'])
+        bg.place(x=0, y=0, relwidth=1, relheight=1)
+        self.apply_gradient(bg)
 
-        index = move - 1
+        container = tk.Frame(self.root, bg=t['bg'])
+        container.place(relx=0.5, rely=0.5, anchor='center')
 
-        if board[index] != ' ':
-            print("  Клетка занята.")
-            input("  Enter чтобы продолжить...")
-            return -1
+        tk.Label(container, text="КРЕСТИКИ-НОЛИКИ",
+                 font=('Arial',28,'bold'), bg=t['bg'], fg=t['label']).pack(pady=(0,40))
 
-        return index
+        def btn(text, bgc, fgc, cmd, pady=10):
+            tk.Button(container, text=text, font=('Arial',16,'bold'),
+                      bg=bgc, fg=fgc, activebackground=t['btn_active'],
+                      activeforeground=fgc, relief='flat', bd=0,
+                      padx=40, pady=14, width=18, cursor='hand2',
+                      command=cmd).pack(pady=pady)
 
+        btn("Два игрока", t['btn'], t['fg'], lambda: self.start_game(False))
+        btn("Против компьютера", t['btn'], t['fg'], lambda: self.start_game(True))
+        btn("Итог игр", t['label'], t['bg'], self.show_stats)
+        btn(f"Скин: {t['name']}", t['btn'], t['fg'], self.next_theme)
+        btn("Выход", t['x'], t['bg'], self.root.destroy, pady=(30,0))
 
-def play_game(vs_computer):
-    board = [' '] * 9
-    player = 'X'
+    def show_stats(self):
+        self.clear_window()
+        t = self.theme
+        bg = tk.Frame(self.root, bg=t['bg'])
+        bg.place(x=0, y=0, relwidth=1, relheight=1)
+        self.apply_gradient(bg)
 
-    while True:
-        clear()
+        container = tk.Frame(self.root, bg=t['bg'])
+        container.place(relx=0.5, rely=0.5, anchor='center')
+
+        tk.Label(container, text="ИТОГ ИГР", font=('Arial',28,'bold'),
+                 bg=t['bg'], fg=t['label']).pack(pady=(0,30))
+
+        sf = tk.Frame(container, bg=t['bg'])
+        sf.pack(pady=10)
+
+        def row(label, value, color=None):
+            r = tk.Frame(sf, bg=t['bg'])
+            r.pack(pady=8, fill='x')
+            tk.Label(r, text=label, font=('Arial',16),
+                     bg=t['bg'], fg=t['fg'], width=18, anchor='w').pack(side='left')
+            tk.Label(r, text=str(value), font=('Arial',16,'bold'),
+                     bg=t['bg'], fg=color or t['fg'], width=6, anchor='e').pack(side='right')
+
+        row("Всего партий:", self.games_played)
+        row(f"Победы {self.names['X']}:", self.wins['X'], t['x'])
+        row(f"Победы {self.names['O']}:", self.wins['O'], t['o'])
+        row("Ничьих:", self.draws)
+
+        tk.Button(container, text="Назад", font=('Arial',16,'bold'),
+                  bg=t['btn'], fg=t['fg'], relief='flat', bd=0,
+                  padx=40, pady=14, width=18, cursor='hand2',
+                  command=self.show_menu).pack(pady=(40,0))
+
+    def ask_names(self, vs_computer):
+        """Спрашивает имена перед игрой."""
         if vs_computer:
-            print_header("Ты — X   |   Компьютер — O")
+            name_x = simpledialog.askstring("Имя", "Как тебя зовут?", parent=self.root)
+            self.names = {
+                'X': name_x or 'Ты',
+                'O': 'Компьютер',
+            }
         else:
-            print_header("Два игрока")
-        print_board(board)
+            name_x = simpledialog.askstring("Имя игрока X", "Имя первого игрока?", parent=self.root)
+            name_o = simpledialog.askstring("Имя игрока O", "Имя второго игрока?", parent=self.root)
+            self.names = {
+                'X': name_x or 'Игрок X',
+                'O': name_o or 'Игрок O',
+            }
 
-        if vs_computer and player == 'O':
-            index = computer_move(board, 'O', 'X')
-            board[index] = 'O'
-            print(f"  {BLUE}Компьютер{RESET} сходил в клетку {YELLOW}{index + 1}{RESET}")
-            input("  Enter чтобы продолжить...")
-        else:
-            index = get_human_move(board, player)
-            if index is None:
-                return None
-            if index == -1:
-                continue
-            board[index] = player
+    def start_game(self, vs_computer):
+        self.vs_computer = vs_computer
+        self.ask_names(vs_computer)
+        self.clear_window()
+        self.create_widgets()
+        self.reset_game()
 
-        if check_win(board, player):
-            clear()
-            print_header("ПОБЕДА")
-            print_board(board)
-            if vs_computer and player == 'O':
-                print(f"  {RED}{BOLD}Компьютер победил!{RESET}")
-            else:
-                print(f"  {GREEN}{BOLD}Игрок {colorize(player)} победил!{RESET}")
-            input("\n  Enter чтобы продолжить...")
-            return player
+    def create_widgets(self):
+        t = self.theme
+        bg = tk.Frame(self.root, bg=t['bg'])
+        bg.place(x=0, y=0, relwidth=1, relheight=1)
+        self.apply_gradient(bg)
 
-        if is_draw(board):
-            clear()
-            print_header("НИЧЬЯ")
-            print_board(board)
-            print(f"  {YELLOW}{BOLD}Ничья!{RESET}")
-            input("\n  Enter чтобы продолжить...")
-            return 'draw'
+        container = tk.Frame(self.root, bg=t['bg'])
+        container.place(relx=0.5, rely=0.5, anchor='center')
 
-        player = 'O' if player == 'X' else 'X'
+        tk.Label(container, text="КРЕСТИКИ-НОЛИКИ",
+                 font=('Arial',22,'bold'), bg=t['bg'], fg=t['label']
+                 ).grid(row=0, column=0, columnspan=3, pady=(0,10))
+
+        self.status_label = tk.Label(container, text=f"Ход: {self.names['X']}",
+                                     font=('Arial',16), bg=t['bg'], fg=t['fg'])
+        self.status_label.grid(row=1, column=0, columnspan=3, pady=5)
+
+        self.score_label = tk.Label(
+            container,
+            text=f"{self.names['X']}: 0   {self.names['O']}: 0   Ничьих: 0",
+            font=('Arial',12), bg=t['bg'], fg=t['fg'])
+        self.score_label.grid(row=2, column=0, columnspan=3, pady=5)
+
+        self.buttons_frame = tk.Frame(container, bg=t['bg'])
+        self.buttons_frame.grid(row=3, column=0, columnspan=3, pady=15)
+
+        self.buttons = []
+        for i in range(9):
+            b = tk.Button(self.buttons_frame, text=' ', font=('Arial',32,'bold'),
+                          width=3, height=1, bg=t['btn'], fg=t['fg'],
+                          activebackground=t['btn_active'], activeforeground=t['fg'],
+                          relief='flat', bd=0, cursor='hand2',
+                          command=lambda idx=i: self.on_click(idx))
+            b.grid(row=i//3, column=i%3, padx=4, pady=4)
+            self.buttons.append(b)
+
+        ctrl = tk.Frame(container, bg=t['bg'])
+        ctrl.grid(row=4, column=0, columnspan=3, pady=20)
+
+        def cbtn(text, bgc, fgc, cmd):
+            tk.Button(ctrl, text=text, font=('Arial',12,'bold'),
+                      bg=bgc, fg=fgc, relief='flat', bd=0,
+                      padx=12, pady=8, cursor='hand2',
+                      command=cmd).pack(side='left', padx=4)
+
+        cbtn("Новая", t['label'], t['bg'], self.reset_game)
+        cbtn("Меню", t['btn'], t['fg'], self.show_menu)
+        cbtn("Скин", t['o'], t['bg'], self.next_theme)
+        cbtn("Выход", t['x'], t['bg'], self.root.destroy)
+
+    def reset_game(self):
+        t = self.theme
+        self.board = [' '] * 9
+        self.player = 'X'
+        self.game_over = False
+        for b in self.buttons:
+            b.config(text=' ', fg=t['fg'], state='normal')
+        self.status_label.config(text=f"Ход: {self.names['X']}", fg=t['fg'])
+
+    def on_click(self, index):
+        if self.game_over or self.board[index] != ' ':
+            return
+        t = self.theme
+        self.board[index] = self.player
+        color = t['x'] if self.player == 'X' else t['o']
+        self.buttons[index].config(text=self.player, fg=color)
+
+        if self.check_win(self.player):
+            self.finish_game(f"Победил {self.names[self.player]}!", t['label'])
+            self.wins[self.player] += 1
+            self.games_played += 1
+            return
+        if ' ' not in self.board:
+            self.finish_game("Ничья!", t['fg'])
+            self.draws += 1
+            self.games_played += 1
+            return
+
+        self.player = 'O' if self.player == 'X' else 'X'
+        self.status_label.config(text=f"Ход: {self.names[self.player]}")
+
+        if self.vs_computer and self.player == 'O':
+            self.root.after(300, self.computer_turn)
+
+    def computer_turn(self):
+        if self.game_over:
+            return
+        t = self.theme
+        idx = self.computer_move()
+        self.board[idx] = 'O'
+        self.buttons[idx].config(text='O', fg=t['o'])
+
+        if self.check_win('O'):
+            self.finish_game(f"{self.names['O']} победил!", t['x'])
+            self.wins['O'] += 1
+            self.games_played += 1
+            return
+        if ' ' not in self.board:
+            self.finish_game("Ничья!", t['fg'])
+            self.draws += 1
+            self.games_played += 1
+            return
+
+        self.player = 'X'
+        self.status_label.config(text=f"Ход: {self.names['X']}")
+
+    def computer_move(self):
+        for i in range(9):
+            if self.board[i] == ' ':
+                test = self.board[:]; test[i] = 'O'
+                if self.check_win_list(test, 'O'): return i
+        for i in range(9):
+            if self.board[i] == ' ':
+                test = self.board[:]; test[i] = 'X'
+                if self.check_win_list(test, 'X'): return i
+        if self.board[4] == ' ': return 4
+        return random.choice([i for i in range(9) if self.board[i] == ' '])
+
+    def check_win(self, p):
+        return self.check_win_list(self.board, p)
+
+    def check_win_list(self, b, p):
+        for a, bb, c in [(0,1,2),(3,4,5),(6,7,8),(0,3,6),(1,4,7),(2,5,8),(0,4,8),(2,4,6)]:
+            if b[a] == b[bb] == b[c] == p: return True
+        return False
+
+    def finish_game(self, message, color):
+        self.game_over = True
+        self.status_label.config(text=message, fg=color)
+        self.update_score()
+        for b in self.buttons:
+            b.config(state='disabled')
+        messagebox.showinfo("Игра окончена", message)
+
+    def update_score(self):
+        t = self.theme
+        self.score_label.config(
+            text=f"{self.names['X']}: {self.wins['X']}   {self.names['O']}: {self.wins['O']}   Ничьих: {self.draws}",
+            fg=t['fg'])
 
 
-def choose_mode():
-    while True:
-        clear()
-        print_header("Выбери режим")
-        print(f"  {CYAN}1.{RESET} Два игрока")
-        print(f"  {CYAN}2.{RESET} Против компьютера {DIM}(средний){RESET}")
-        print(f"  {CYAN}3.{RESET} Выход")
-        print()
-
-        choice = input("  → твой выбор (1-3): ").strip()
-
-        if choice == '1':
-            return False
-        elif choice == '2':
-            return True
-        elif choice == '3':
-            return None
-        else:
-            print("  Неверный выбор.")
-            input("  Enter чтобы продолжить...")
-
-
-def main():
-    wins = {'X': 0, 'O': 0}
-    draws = 0
-
-    while True:
-        vs_computer = choose_mode()
-        if vs_computer is None:
-            break
-
-        while True:
-            result = play_game(vs_computer)
-
-            if result is None:
-                break
-            elif result == 'draw':
-                draws += 1
-            else:
-                wins[result] += 1
-
-            clear()
-            print_header("СЧЁТ")
-            print(f"  {RED}{BOLD}X{RESET} = {wins['X']}")
-            print(f"  {BLUE}{BOLD}O{RESET} = {wins['O']}")
-            print(f"  {YELLOW}Ничьих{RESET} = {draws}")
-            print()
-
-            again = input("  Сыграть ещё раз? (да/yes или exit): ")
-            if stop(again):
-                break
-
-    clear()
-    print_header("ИТОГ")
-    print(f"  {RED}{BOLD}X{RESET} = {wins['X']}")
-    print(f"  {BLUE}{BOLD}O{RESET} = {wins['O']}")
-    print(f"  {YELLOW}Ничьих{RESET} = {draws}")
-    print()
-    print(f"  {DIM}Спасибо за игру!{RESET}")
-    print()
-
-
-main()
+if __name__ == '__main__':
+    root = tk.Tk()
+    app = TicTacToe(root)
+    root.mainloop()
