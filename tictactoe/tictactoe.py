@@ -1,10 +1,11 @@
-# Крестики-нолики GUI — v12: анимация появления X/O
+# Крестики-нолики GUI — v13: история последних игр
 
 import tkinter as tk
 from tkinter import messagebox, simpledialog
 import random
 import os
 import sys
+from datetime import datetime
 
 
 def play_sound(kind='click'):
@@ -40,6 +41,7 @@ THEMES = {
 
 THEME_ORDER = ['dark','light','ocean','sunset']
 WIN_LINES = [(0,1,2),(3,4,5),(6,7,8),(0,3,6),(1,4,7),(2,5,8),(0,4,8),(2,4,6)]
+MAX_HISTORY = 10
 
 
 class TicTacToe:
@@ -58,6 +60,7 @@ class TicTacToe:
         self.games_played = 0
         self.vs_computer = False
         self.names = {'X':'Игрок X','O':'Игрок O'}
+        self.history = []   # список последних партий
 
         self.root.configure(bg=self.theme['bg'])
         self.center_window()
@@ -110,19 +113,49 @@ class TicTacToe:
         c = tk.Frame(self.root, bg=t['bg']); c.place(relx=.5, rely=.5, anchor='center')
 
         tk.Label(c, text="КРЕСТИКИ-НОЛИКИ", font=('Arial',28,'bold'),
-                 bg=t['bg'], fg=t['label']).pack(pady=(0,40))
+                 bg=t['bg'], fg=t['label']).pack(pady=(0,30))
 
-        def btn(text, bgc, fgc, cmd, pady=10):
-            tk.Button(c, text=text, font=('Arial',16,'bold'), bg=bgc, fg=fgc,
+        def btn(text, bgc, fgc, cmd, pady=8):
+            tk.Button(c, text=text, font=('Arial',15,'bold'), bg=bgc, fg=fgc,
                       activebackground=t['btn_active'], activeforeground=fgc,
-                      relief='flat', bd=0, padx=40, pady=14, width=18,
+                      relief='flat', bd=0, padx=40, pady=12, width=18,
                       cursor='hand2', command=cmd).pack(pady=pady)
 
         btn("Два игрока", t['btn'], t['fg'], lambda: self.start_game(False))
         btn("Против компьютера", t['btn'], t['fg'], lambda: self.start_game(True))
         btn("Итог игр", t['label'], t['bg'], self.show_stats)
+        btn("История игр", t['o'], t['bg'], self.show_history)
         btn(f"Скин: {t['name']}", t['btn'], t['fg'], self.next_theme)
-        btn("Выход", t['x'], t['bg'], self.root.destroy, pady=(30,0))
+        btn("Выход", t['x'], t['bg'], self.root.destroy, pady=(20,0))
+
+    def show_history(self):
+        """Экран последних партий."""
+        self.clear_window()
+        t = self.theme
+        bg = tk.Frame(self.root, bg=t['bg']); bg.place(x=0,y=0,relwidth=1,relheight=1)
+        self.apply_gradient(bg)
+        c = tk.Frame(self.root, bg=t['bg']); c.place(relx=.5, rely=.5, anchor='center')
+
+        tk.Label(c, text="ИСТОРИЯ ИГР", font=('Arial',24,'bold'),
+                 bg=t['bg'], fg=t['label']).pack(pady=(0,20))
+
+        if not self.history:
+            tk.Label(c, text="Пока нет сыгранных партий",
+                     font=('Arial',14), bg=t['bg'], fg=t['fg']).pack(pady=30)
+        else:
+            # Показываем последние 10
+            for entry in reversed(self.history[-MAX_HISTORY:]):
+                frame = tk.Frame(c, bg=t['bg'])
+                frame.pack(pady=4, fill='x', padx=20)
+
+                tk.Label(frame, text=entry['time'], font=('Arial',10),
+                         bg=t['bg'], fg=t['fg'], width=12, anchor='w').pack(side='left')
+                tk.Label(frame, text=entry['result'], font=('Arial',12,'bold'),
+                         bg=t['bg'], fg=entry['color'], anchor='w').pack(side='left')
+
+        tk.Button(c, text="Назад", font=('Arial',16,'bold'), bg=t['btn'], fg=t['fg'],
+                  relief='flat', bd=0, padx=40, pady=12, width=18, cursor='hand2',
+                  command=self.show_menu).pack(pady=(30,0))
 
     def show_stats(self):
         self.clear_window()
@@ -148,7 +181,7 @@ class TicTacToe:
         row("Ничьих:", self.draws)
 
         tk.Button(c, text="Назад", font=('Arial',16,'bold'), bg=t['btn'], fg=t['fg'],
-                  relief='flat', bd=0, padx=40, pady=14, width=18, cursor='hand2',
+                  relief='flat', bd=0, padx=40, pady=12, width=18, cursor='hand2',
                   command=self.show_menu).pack(pady=(40,0))
 
     def ask_names(self, vs_computer):
@@ -208,7 +241,6 @@ class TicTacToe:
         cb("Выход", t['x'], t['bg'], self.root.destroy)
 
     def animate_mark(self, index, player, color, step=8):
-        """Плавное появление X/O: шрифт растёт от 8 до 32."""
         if step > 32:
             self.buttons[index].config(font=('Arial',32,'bold'))
             return
@@ -227,6 +259,18 @@ class TicTacToe:
                      font=('Arial',32,'bold'))
         self.status_label.config(text=f"Ход: {self.names['X']}", fg=t['fg'])
 
+    def add_history(self, result_text, color):
+        """Добавляет запись в историю."""
+        entry = {
+            'time': datetime.now().strftime('%H:%M:%S'),
+            'result': result_text,
+            'color': color,
+        }
+        self.history.append(entry)
+        # Держим только последние MAX_HISTORY
+        if len(self.history) > MAX_HISTORY:
+            self.history.pop(0)
+
     def on_click(self, index):
         if self.game_over or self.board[index] != ' ':
             play_sound('error')
@@ -241,10 +285,12 @@ class TicTacToe:
         if line:
             self.finish_game(f"Победил {self.names[self.player]}!", t['label'], line)
             self.wins[self.player] += 1; self.games_played += 1
+            self.add_history(f"Победил {self.names[self.player]}", t['label'])
             return
         if ' ' not in self.board:
             self.finish_game("Ничья!", t['fg'], None)
             self.draws += 1; self.games_played += 1
+            self.add_history("Ничья", t['fg'])
             return
 
         self.player = 'O' if self.player=='X' else 'X'
@@ -264,10 +310,12 @@ class TicTacToe:
         if line:
             self.finish_game(f"{self.names['O']} победил!", t['x'], line)
             self.wins['O'] += 1; self.games_played += 1
+            self.add_history(f"{self.names['O']} победил", t['x'])
             return
         if ' ' not in self.board:
             self.finish_game("Ничья!", t['fg'], None)
             self.draws += 1; self.games_played += 1
+            self.add_history("Ничья", t['fg'])
             return
 
         self.player = 'X'
@@ -277,7 +325,8 @@ class TicTacToe:
         for i in range(9):
             if self.board[i] == ' ':
                 test = self.board[:]; test[i]='O'
-                if self.check_win_list(test,'O'): return i        for i in range(9):
+                if self.check_win_list(test,'O'): return i
+        for i in range(9):
             if self.board[i] == ' ':
                 test = self.board[:]; test[i]='X'
                 if self.check_win_list(test,'X'): return i
