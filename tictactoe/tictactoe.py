@@ -1,4 +1,4 @@
-# Крестики-нолики GUI — v11: звуки
+# Крестики-нолики GUI — v12: анимация появления X/O
 
 import tkinter as tk
 from tkinter import messagebox, simpledialog
@@ -7,22 +7,16 @@ import os
 import sys
 
 
-# Звук — кроссплатформенно
 def play_sound(kind='click'):
-    """click / win / draw / error"""
     try:
         if sys.platform == 'win32':
             import winsound
-            if kind == 'win':
-                winsound.Beep(880, 300)
-            elif kind == 'draw':
-                winsound.Beep(440, 200)
-            elif kind == 'error':
-                winsound.Beep(200, 150)
-            else:
-                winsound.Beep(600, 50)
+            if kind == 'win': winsound.Beep(880, 300)
+            elif kind == 'draw': winsound.Beep(440, 200)
+            elif kind == 'error': winsound.Beep(200, 150)
+            else: winsound.Beep(600, 50)
         elif sys.platform == 'darwin':
-            os.system(f'afplay /System/Library/Sounds/Pop.aiff &')
+            os.system('afplay /System/Library/Sounds/Pop.aiff &')
         else:
             print('\a', end='', flush=True)
     except Exception:
@@ -213,6 +207,15 @@ class TicTacToe:
         cb("Скин", t['o'], t['bg'], self.next_theme)
         cb("Выход", t['x'], t['bg'], self.root.destroy)
 
+    def animate_mark(self, index, player, color, step=8):
+        """Плавное появление X/O: шрифт растёт от 8 до 32."""
+        if step > 32:
+            self.buttons[index].config(font=('Arial',32,'bold'))
+            return
+        self.buttons[index].config(text=player, fg=color,
+                                   font=('Arial', step, 'bold'))
+        self.root.after(15, lambda: self.animate_mark(index, player, color, step+4))
+
     def reset_game(self):
         play_sound('click')
         t = self.theme
@@ -220,7 +223,8 @@ class TicTacToe:
         self.player = 'X'
         self.game_over = False
         for b in self.buttons:
-            b.config(text=' ', fg=t['fg'], bg=t['btn'], state='normal')
+            b.config(text=' ', fg=t['fg'], bg=t['btn'], state='normal',
+                     font=('Arial',32,'bold'))
         self.status_label.config(text=f"Ход: {self.names['X']}", fg=t['fg'])
 
     def on_click(self, index):
@@ -230,8 +234,8 @@ class TicTacToe:
         play_sound('click')
         t = self.theme
         self.board[index] = self.player
-        self.buttons[index].config(
-            text=self.player, fg=t['x'] if self.player=='X' else t['o'])
+        color = t['x'] if self.player=='X' else t['o']
+        self.animate_mark(index, self.player, color)
 
         line = self.get_winning_line(self.player)
         if line:
@@ -246,14 +250,14 @@ class TicTacToe:
         self.player = 'O' if self.player=='X' else 'X'
         self.status_label.config(text=f"Ход: {self.names[self.player]}")
         if self.vs_computer and self.player == 'O':
-            self.root.after(300, self.computer_turn)
+            self.root.after(400, self.computer_turn)
 
     def computer_turn(self):
         if self.game_over: return
         t = self.theme
         idx = self.computer_move()
         self.board[idx] = 'O'
-        self.buttons[idx].config(text='O', fg=t['o'])
+        self.animate_mark(idx, 'O', t['o'])
         play_sound('click')
 
         line = self.get_winning_line('O')
@@ -273,8 +277,7 @@ class TicTacToe:
         for i in range(9):
             if self.board[i] == ' ':
                 test = self.board[:]; test[i]='O'
-                if self.check_win_list(test,'O'): return i
-        for i in range(9):
+                if self.check_win_list(test,'O'): return i        for i in range(9):
             if self.board[i] == ' ':
                 test = self.board[:]; test[i]='X'
                 if self.check_win_list(test,'X'): return i
