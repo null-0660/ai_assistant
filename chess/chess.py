@@ -1,4 +1,6 @@
-# Шахматы — v2: ходы (без правил фигур)
+# Шахматы — v3: режим против бота (случайный)
+
+import random
 
 WHITE_PIECES = {'K':'♔','Q':'♕','R':'♖','B':'♗','N':'♘','P':'♙'}
 BLACK_PIECES = {'k':'♚','q':'♛','r':'♜','b':'♝','n':'♞','p':'♟'}
@@ -35,54 +37,88 @@ def print_board(board):
 
 
 def parse_square(s):
-    """'e2' -> (row, col) или None."""
-    if len(s) != 2:
-        return None
-    col_letter = s[0].lower()
-    row_digit = s[1]
+    if len(s) != 2: return None
+    col_letter = s[0].lower(); row_digit = s[1]
     if col_letter not in 'abcdefgh' or row_digit not in '12345678':
         return None
-    col = 'abcdefgh'.index(col_letter)
-    row = 8 - int(row_digit)
-    return (row, col)
+    return (8 - int(row_digit), 'abcdefgh'.index(col_letter))
+
+
+def square_name(r, c):
+    """(6, 4) -> 'e2'"""
+    return f"{'abcdefgh'[c]}{8 - r}"
 
 
 def is_white(p): return p.isupper()
 def is_black(p): return p.islower() and p != ' '
 
 
-def move(board, fr, to, player):
-    """Проверка и выполнение хода. Возвращает True/False."""
-    fr_r, fr_c = fr
-    to_r, to_c = to
-    piece = board[fr_r][fr_c]
-    target = board[to_r][to_c]
+def valid_moves(board, player):
+    """Все допустимые ходы по базовым правилам."""
+    moves = []
+    for r in range(8):
+        for c in range(8):
+            p = board[r][c]
+            if p == ' ': continue
+            if player == 'white' and not is_white(p): continue
+            if player == 'black' and not is_black(p): continue
+            for tr in range(8):
+                for tc in range(8):
+                    t = board[tr][tc]
+                    if t == ' ': moves.append(((r,c),(tr,tc))); continue
+                    if player == 'white' and is_black(t):
+                        moves.append(((r,c),(tr,tc)))
+                    elif player == 'black' and is_white(t):
+                        moves.append(((r,c),(tr,tc)))
+    return moves
 
-    if piece == ' ':
-        print("Там нет фигуры.")
-        return False
 
-    if player == 'white' and not is_white(piece):
-        print("Сейчас ходят белые.")
-        return False
-    if player == 'black' and not is_black(piece):
-        print("Сейчас ходят чёрные.")
-        return False
-
-    if target != ' ':
-        if player == 'white' and not is_black(target):
-            print("Нельзя бить свою фигуру.")
-            return False
-        if player == 'black' and not is_white(target):
-            print("Нельзя бить свою фигуру.")
-            return False
-
-    board[to_r][to_c] = piece
+def make_move(board, fr, to):
+    fr_r, fr_c = fr; to_r, to_c = to
+    board[to_r][to_c] = board[fr_r][fr_c]
     board[fr_r][fr_c] = ' '
-    return True
+
+
+def bot_move(board, player):
+    """Случайный допустимый ход."""
+    moves = valid_moves(board, player)
+    if not moves: return None
+    return random.choice(moves)
+
+
+def human_move(board, player):
+    while True:
+        cmd = input("Ход (например e2 e4) или exit: ").strip()
+        if cmd.lower() in ('exit', 'стоп'):
+            return None
+        parts = cmd.split()
+        if len(parts) != 2:
+            print("Нужно два поля."); continue
+        fr = parse_square(parts[0]); to = parse_square(parts[1])
+        if not fr or not to:
+            print("Неверный формат."); continue
+        piece = board[fr[0]][fr[1]]
+        if piece == ' ':
+            print("Там нет фигуры."); continue
+        if player == 'white' and not is_white(piece):
+            print("Сейчас ходят белые."); continue
+        if player == 'black' and not is_black(piece):
+            print("Сейчас ходят чёрные."); continue
+        target = board[to[0]][to[1]]
+        if target != ' ':
+            if player == 'white' and not is_black(target):
+                print("Нельзя бить свою."); continue
+            if player == 'black' and not is_white(target):
+                print("Нельзя бить свою."); continue
+        return (fr, to)
 
 
 def main():
+    print("1. Два игрока")
+    print("2. Против бота (случайный)")
+    mode = input("Режим (1-2): ").strip()
+
+    vs_bot = (mode == '2')
     board = create_board()
     player = 'white'
 
@@ -90,24 +126,25 @@ def main():
         print_board(board)
         print(f"Ход: {'белые' if player == 'white' else 'чёрные'}")
 
-        cmd = input("Ход (например e2 e4) или exit: ").strip()
-        if cmd.lower() in ('exit', 'стоп'):
+        if vs_bot and player == 'black':
+            print("Бот думает...")
+            move = bot_move(board, 'black')
+            if not move:
+                print("Бот не может ходить.")
+                break
+            fr, to = move
+            print(f"Бот: {square_name(*fr)} -> {square_name(*to)}")
+            make_move(board, fr, to)
+            player = 'white'
+            continue
+
+        move = human_move(board, player)
+        if move is None:
             print("Выход.")
             break
-
-        parts = cmd.split()
-        if len(parts) != 2:
-            print("Нужно два поля: откуда и куда.")
-            continue
-
-        fr = parse_square(parts[0])
-        to = parse_square(parts[1])
-        if not fr or not to:
-            print("Неверный формат. Пример: e2 e4")
-            continue
-
-        if move(board, fr, to, player):
-            player = 'black' if player == 'white' else 'white'
+        fr, to = move
+        make_move(board, fr, to)
+        player = 'black' if player == 'white' else 'white'
 
 
 main()
