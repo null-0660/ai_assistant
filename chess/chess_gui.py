@@ -1,4 +1,4 @@
-# Шахматы — v5: шах и мат
+# Шахматы — v6: рокировка, превращение, en passant
 
 WHITE_PIECES = {'K':'♔','Q':'♕','R':'♖','B':'♗','N':'♘','P':'♙'}
 BLACK_PIECES = {'k':'♚','q':'♛','r':'♜','b':'♝','n':'♞','p':'♟'}
@@ -40,10 +40,6 @@ def parse_square(s):
     if col_letter not in 'abcdefgh' or row_digit not in '12345678':
         return None
     return (8 - int(row_digit), 'abcdefgh'.index(col_letter))
-
-
-def square_name(r, c):
-    return f"{'abcdefgh'[c]}{8 - r}"
 
 
 def is_white(p): return p.isupper()
@@ -138,7 +134,6 @@ def find_king(board, player):
 
 
 def is_attacked(board, r, c, by_player):
-    """Атакована ли клетка (r,c) фигурами by_player."""
     for rr in range(8):
         for cc in range(8):
             p = board[rr][cc]
@@ -151,14 +146,79 @@ def is_attacked(board, r, c, by_player):
 
 
 def in_check(board, player):
-    """Под шахом ли король player."""
     k = find_king(board, player)
     if not k: return False
     enemy = 'black' if player == 'white' else 'white'
     return is_attacked(board, k[0], k[1], enemy)
 
 
-def legal_moves(board, player):
+# ===== Специальные ходы =====
+
+def castling_moves(board, player):
+    """Рокировка: короткая и длинная (если возможно)."""
+    moves = []
+    if player == 'white':
+        row = 7
+        king = 'K'; rook = 'R'
+        enemy = 'black'
+    else:
+        row = 0
+        king = 'k'; rook = 'r'
+        enemy = 'white'
+
+    # Король на e1/e8, ещё не двигался — проверяем через позицию
+    if board[row][4] != king: return []
+
+    # Короткая: f1/g1 пусты, ладья h1, клетки не под атакой
+    if (board[row][7] == rook and board[row][5] == ' '
+            and board[row][6] == ' '):
+        if not is_attacked(board, row, 4, enemy) and \
+           not is_attacked(board, row, 5, enemy) and \
+           not is_attacked(board, row, 6, enemy):
+            moves.append(('O-O', (row, 6)))
+
+    # Длинная: b1/c1/d1 пусты, ладья a1
+    if (board[row][0] == rook and board[row][1] == ' '
+            and board[row][2] == ' ' and board[row][3] == ' '):
+        if not is_attacked(board, row, 4, enemy) and \
+           not is_attacked(board, row, 3, enemy) and \
+           not is_attacked(board, row, 2, enemy):
+            moves.append(('O-O-O', (row, 2)))
+
+    return moves
+
+
+def en_passant_moves(board, r, c, player, last_move):
+    """Взятие на проходе."""
+    moves = []
+    if last_move is None: return []
+    if board[r][c].upper() != 'P': return []
+
+    direction = -1 if player == 'white' else 1
+
+    # Проверяем, была ли последняя пешка противника в 2 клетках
+    last_fr, last_fc, last_to = last_move
+    if last_to[0] != r:  # та же строка
+        return []
+    if abs(last_fr - last_to[0]) != 2:  # не двойной ход
+        return []
+    if abs(last_to[1] - c) != 1:  # не соседняя колонка
+        return []
+
+    # Клетка за пешкой противника
+    nr, nc = last_to[0] + direction, last_to[1]
+    if in_board(nr, nc) and board[nr][nc] == ' ':
+        moves.append((nr, nc))
+    return moves
+
+
+def all_pawn_moves(board, r, c, player, last_move):
+    """Пешка + en passant."""
+    moves = pawn_moves(board, r, c, player) + en_passant_moves(board, r, c, player, last_move)
+    return moves
+
+
+def legal_moves(board, player, last_move=None):
     """Только ходы, после которых свой король не под шахом."""
     moves = []
     for r in range(8):
@@ -167,7 +227,20 @@ def legal_moves(board, player):
             if p == ' ': continue
             if player == 'white' and not is_white(p): continue
             if player == 'black' and not is_black(p): continue
-            for to in get_moves(board, r, c):
+
+            piece_moves = get_moves(board, r, c)
+            if p.upper() == 'P':
+                piece_moves = all_pawn_moves(board, r, c, player, last_move)
+            if p.upper() == 'K':
+                # Рокировка отдельным кодом
+                for name, to in castling_moves(board, player):
+                    test = [row[:] for row in board]
+                    test[to[0]][to[1]] = test[r][c]
+                    test[r][c] = ' '
+                    if not in_check(test, player):
+                        moves.append(((r,c), to, name))
+
+            for to in piece_moves:
                 test = [row[:] for row in board]
                 test[to[0]][to[1]] = test[r][c]
                 test[r][c] = ' '
@@ -176,43 +249,87 @@ def legal_moves(board, player):
     return moves
 
 
-def make_move(board, fr, to):
-    board[to[0]][to[1]] = board[fr[0]][fr[1]]
+def apply_move(board, fr, to, last_move=None):
+    """Выполняет ход, возвращает (new_last_move, promotion_needed)."""
+    piece = board[fr[0]][fr[1]]
+    captured = board[to[0]][to[1]]
+
+    # En passant
+    if piece.upper() == 'P' and captured == ' ' and fr[1] != to[1]:
+        # Диагональный ход на пустую — это en passant
+        board[fr[0]][to[1]] = ' '  # убираем пешку противника
+
+    board[to[0]][to[1]] = piece
     board[fr[0]][fr[1]] = ' '
 
+    # Превращение пешки
+    promotion = False
+    if piece == 'P' and to[0] == 0:
+        promotion = True
+    if piece == 'p' and to[0] == 7:
+        promotion = True
 
-def human_move(board, player):
+    return (fr[0], fr[1], to), promotion
+
+
+def do_promotion(board, r, c, player):
+    """Спрашивает, в кого превратить пешку."""
+    print("Превращение! Выбери фигуру: Q (ферзь), R (ладья), B (слон), N (конь)")
+    while True:
+        choice = input("Q/R/B/N: ").strip().upper()
+        if choice in ('Q','R','B','N'):
+            new = choice if player == 'white' else choice.lower()
+            board[r][c] = new
+            return
+
+
+def human_move(board, player, last_move):
+    moves = legal_moves(board, player, last_move)
     while True:
         cmd = input("Ход (e2 e4) или exit: ").strip()
         if cmd.lower() in ('exit', 'стоп'): return None
+
+        # Рокировка
+        if cmd.lower() in ('o-o', '0-0'):
+            for m in moves:
+                if len(m) == 3 and m[2] == 'O-O':
+                    return (m[0], m[1])
+            print("Рокировка невозможна."); continue
+        if cmd.lower() in ('o-o-o', '0-0-0'):
+            for m in moves:
+                if len(m) == 3 and m[2] == 'O-O-O':
+                    return (m[0], m[1])
+            print("Длинная рокировка невозможна."); continue
+
         parts = cmd.split()
         if len(parts) != 2:
             print("Нужно два поля."); continue
         fr = parse_square(parts[0]); to = parse_square(parts[1])
         if not fr or not to:
             print("Неверный формат."); continue
-        piece = board[fr[0]][fr[1]]
-        if piece == ' ':
-            print("Там нет фигуры."); continue
-        if player == 'white' and not is_white(piece):
-            print("Сейчас ходят белые."); continue
-        if player == 'black' and not is_black(piece):
-            print("Сейчас ходят чёрные."); continue
-        if to not in get_moves(board, fr[0], fr[1]):
-            print("Так эта фигура не ходит."); continue
-        if ((fr[0], fr[1]), to) not in legal_moves(board, player):
-            print("Этот ход оставляет короля под шахом."); continue
+
+        # Ищем ход в legal_moves
+        found = None
+        for m in moves:
+            if m[0] == fr and m[1] == to:
+                found = m
+                break
+        if not found:
+            print("Недопустимый ход."); continue
         return (fr, to)
 
 
 def main():
     board = create_board()
     player = 'white'
+    last_move = None
+
     while True:
         print_board(board)
         if in_check(board, player):
             print("ШАХ!")
-        moves = legal_moves(board, player)
+
+        moves = legal_moves(board, player, last_move)
         if not moves:
             if in_check(board, player):
                 winner = 'чёрные' if player == 'white' else 'белые'
@@ -220,10 +337,31 @@ def main():
             else:
                 print("ПАТ. Ничья.")
             break
+
         print(f"Ход: {'белые' if player == 'white' else 'чёрные'}")
-        move = human_move(board, player)
+        move = human_move(board, player, last_move)
         if move is None: break
-        make_move(board, *move)
+
+        fr, to = move
+        old_last = last_move
+        new_last, promotion = apply_move(board, fr, to, last_move)
+
+        # Рокировка: двигаем ладью
+        piece = board[to[0]][to[1]]
+        if piece.upper() == 'K' and abs(to[1] - fr[1]) == 2:
+            row = to[0]
+            if to[1] == 6:  # короткая
+                board[row][5] = board[row][7]
+                board[row][7] = ' '
+            else:  # длинная
+                board[row][3] = board[row][0]
+                board[row][0] = ' '
+
+        # Превращение пешки
+        if promotion:
+            do_promotion(board, to[0], to[1], player)
+
+        last_move = new_last
         player = 'black' if player == 'white' else 'white'
 
 
