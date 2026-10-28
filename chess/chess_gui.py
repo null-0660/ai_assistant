@@ -1,26 +1,7 @@
-# Шахматы GUI — v1: доска, фигуры, клик-ход, бот
-
-import tkinter as tk
-from tkinter import messagebox
-import random
-
+# Шахматы — v4: правила фигур
 
 WHITE_PIECES = {'K':'♔','Q':'♕','R':'♖','B':'♗','N':'♘','P':'♙'}
 BLACK_PIECES = {'k':'♚','q':'♛','r':'♜','b':'♝','n':'♞','p':'♟'}
-
-LIGHT = '#f0d9b5'
-DARK = '#b58863'
-SELECT = '#f6f669'
-WHITE_COLOR = '#ffffff'
-BLACK_COLOR = '#000000'
-
-
-def piece_symbol(p):
-    if p == ' ':
-        return ''
-    if p.isupper():
-        return WHITE_PIECES.get(p, p)
-    return BLACK_PIECES.get(p, p)
 
 
 def create_board():
@@ -32,200 +13,203 @@ def create_board():
     return board
 
 
+def piece_symbol(p):
+    if p == ' ': return '·'
+    if p.isupper(): return WHITE_PIECES.get(p, p)
+    return BLACK_PIECES.get(p, p)
+
+
+def print_board(board):
+    print()
+    print("   a b c d e f g h")
+    print("  +----------------+")
+    for row in range(8):
+        line = f"{8 - row} |"
+        for col in range(8):
+            line += f" {piece_symbol(board[row][col])}"
+        line += " |"
+        print(line)
+    print("  +----------------+")
+    print("   a b c d e f g h")
+    print()
+
+
+def parse_square(s):
+    if len(s) != 2: return None
+    col_letter = s[0].lower(); row_digit = s[1]
+    if col_letter not in 'abcdefgh' or row_digit not in '12345678':
+        return None
+    return (8 - int(row_digit), 'abcdefgh'.index(col_letter))
+
+
+def square_name(r, c):
+    return f"{'abcdefgh'[c]}{8 - r}"
+
+
 def is_white(p): return p.isupper()
 def is_black(p): return p.islower() and p != ' '
 
 
-class ChessGUI:
-    def __init__(self, root):
-        self.root = root
-        self.root.title("Шахматы")
-        self.root.resizable(False, False)
+def is_enemy(p, player):
+    if p == ' ': return False
+    if player == 'white': return is_black(p)
+    return is_white(p)
 
-        self.board = create_board()
-        self.selected = None   # (row, col) выбранной фигуры
-        self.player = 'white'
-        self.vs_bot = False
-        self.game_started = False
 
-        self.buttons = []
-        self.show_menu()
+def is_friend(p, player):
+    if p == ' ': return False
+    if player == 'white': return is_white(p)
+    return is_black(p)
 
-    def clear_window(self):
-        for w in self.root.winfo_children():
-            w.destroy()
 
-    def show_menu(self):
-        self.clear_window()
-        self.root.configure(bg='#2d2d2d')
+def in_board(r, c):
+    return 0 <= r < 8 and 0 <= c < 8
 
-        tk.Label(self.root, text="ШАХМАТЫ", font=('Arial', 28, 'bold'),
-                 bg='#2d2d2d', fg='#ffffff').pack(pady=(40, 30))
 
-        def btn(text, cmd):
-            tk.Button(self.root, text=text, font=('Arial', 16, 'bold'),
-                      bg='#4d4d4d', fg='#ffffff',
-                      activebackground='#6d6d6d', activeforeground='#ffffff',
-                      relief='flat', bd=0, padx=40, pady=14, width=18,
-                      cursor='hand2', command=cmd).pack(pady=8)
+# ===== Ходы фигур =====
 
-        btn("Два игрока", lambda: self.start_game(False))
-        btn("Против бота", lambda: self.start_game(True))
-        btn("Выход", self.root.destroy)
+def pawn_moves(board, r, c, player):
+    """Все возможные ходы пешки."""
+    moves = []
+    direction = -1 if player == 'white' else 1
+    start_row = 6 if player == 'white' else 1
 
-    def start_game(self, vs_bot):
-        self.vs_bot = vs_bot
-        self.board = create_board()
-        self.selected = None
-        self.player = 'white'
-        self.game_started = True
-        self.clear_window()
-        self.create_board_widgets()
+    # 1 вперёд
+    nr = r + direction
+    if in_board(nr, c) and board[nr][c] == ' ':
+        moves.append((nr, c))
+        # 2 вперёд с начальной позиции
+        if r == start_row and board[r + 2*direction][c] == ' ':
+            moves.append((r + 2*direction, c))
 
-    def create_board_widgets(self):
-        self.root.configure(bg='#2d2d2d')
+    # Диагональное взятие
+    for dc in (-1, 1):
+        nr, nc = r + direction, c + dc
+        if in_board(nr, nc) and is_enemy(board[nr][nc], player):
+            moves.append((nr, nc))
 
-        self.status = tk.Label(self.root, text="Ход: белые",
-                               font=('Arial', 16, 'bold'),
-                               bg='#2d2d2d', fg='#ffffff')
-        self.status.pack(pady=10)
+    return moves
 
-        board_frame = tk.Frame(self.root, bg='#2d2d2d')
-        board_frame.pack(padx=10, pady=10)
 
-        self.buttons = []
-        for r in range(8):
-            row_btns = []
-            for c in range(8):
-                color = LIGHT if (r + c) % 2 == 0 else DARK
-                btn = tk.Button(
-                    board_frame,
-                    text='',
-                    font=('Arial', 28),
-                    width=2, height=1,
-                    bg=color, fg=BLACK_COLOR,
-                    relief='flat', bd=0,
-                    activebackground=color,
-                    command=lambda rr=r, cc=c: self.on_click(rr, cc)
-                )
-                btn.grid(row=r, column=c)
-                row_btns.append(btn)
-            self.buttons.append(row_btns)
+def knight_moves(board, r, c, player):
+    moves = []
+    for dr, dc in [(-2,-1),(-2,1),(-1,-2),(-1,2),
+                   (1,-2),(1,2),(2,-1),(2,1)]:
+        nr, nc = r + dr, c + dc
+        if in_board(nr, nc) and not is_friend(board[nr][nc], player):
+            moves.append((nr, nc))
+    return moves
 
-        # Финальная кнопка «В меню»
-        tk.Button(self.root, text="В меню", font=('Arial', 12, 'bold'),
-                  bg='#4d4d4d', fg='#ffffff', relief='flat', bd=0,
-                  padx=20, pady=8, cursor='hand2',
-                  command=self.show_menu).pack(pady=10)
 
-        self.refresh_board()
-
-    def refresh_board(self):
-        for r in range(8):
-            for c in range(8):
-                p = self.board[r][c]
-                base = LIGHT if (r + c) % 2 == 0 else DARK
-                btn = self.buttons[r][c]
-
-                # Цвет выбранной клетки
-                if self.selected == (r, c):
-                    btn.config(bg=SELECT)
-                else:
-                    btn.config(bg=base)
-
-                # Символ и цвет фигуры
-                if p == ' ':
-                    btn.config(text='')
-                else:
-                    btn.config(text=piece_symbol(p),
-                               fg=WHITE_COLOR if is_white(p) else BLACK_COLOR)
-
-    def on_click(self, r, c):
-        if not self.game_started:
-            return
-
-        p = self.board[r][c]
-
-        # Если ничего не выбрано — выбираем свою фигуру
-        if self.selected is None:
+def sliding_moves(board, r, c, player, directions):
+    moves = []
+    for dr, dc in directions:
+        nr, nc = r + dr, c + dc
+        while in_board(nr, nc):
+            p = board[nr][nc]
             if p == ' ':
-                return
-            if self.player == 'white' and not is_white(p):
-                return
-            if self.player == 'black' and not is_black(p):
-                return
-            self.selected = (r, c)
-            self.refresh_board()
-            return
-
-        # Если выбрана та же клетка — снять выбор
-        if self.selected == (r, c):
-            self.selected = None
-            self.refresh_board()
-            return
-
-        # Проверка: не своя ли цель
-        if p != ' ':
-            if self.player == 'white' and not is_black(p):
-                # Своя фигура — переключить выбор
-                self.selected = (r, c)
-                self.refresh_board()
-                return
-            if self.player == 'black' and not is_white(p):
-                self.selected = (r, c)
-                self.refresh_board()
-                return
-
-        # Выполнить ход
-        fr = self.selected
-        to = (r, c)
-        self.board[to[0]][to[1]] = self.board[fr[0]][fr[1]]
-        self.board[fr[0]][fr[1]] = ' '
-        self.selected = None
-
-        # Смена игрока
-        self.player = 'black' if self.player == 'white' else 'white'
-        self.status.config(text=f"Ход: {'белые' if self.player == 'white' else 'чёрные'}")
-        self.refresh_board()
-
-        # Ход бота
-        if self.vs_bot and self.player == 'black':
-            self.root.after(400, self.bot_turn)
-
-    def bot_turn(self):
-        moves = self.all_valid_moves('black')
-        if not moves:
-            messagebox.showinfo("Шахматы", "Бот не может ходить.")
-            return
-        fr, to = random.choice(moves)
-        self.board[to[0]][to[1]] = self.board[fr[0]][fr[1]]
-        self.board[fr[0]][fr[1]] = ' '
-
-        self.player = 'white'
-        self.status.config(text="Ход: белые")
-        self.refresh_board()
-
-    def all_valid_moves(self, player):
-        moves = []
-        for r in range(8):
-            for c in range(8):
-                p = self.board[r][c]
-                if p == ' ': continue
-                if player == 'white' and not is_white(p): continue
-                if player == 'black' and not is_black(p): continue
-                for tr in range(8):
-                    for tc in range(8):
-                        t = self.board[tr][tc]
-                        if t == ' ':
-                            moves.append(((r,c),(tr,tc)))
-                        elif player == 'white' and is_black(t):
-                            moves.append(((r,c),(tr,tc)))
-                        elif player == 'black' and is_white(t):
-                            moves.append(((r,c),(tr,tc)))
-        return moves
+                moves.append((nr, nc))
+            elif is_enemy(p, player):
+                moves.append((nr, nc))
+                break
+            else:
+                break
+            nr += dr; nc += dc
+    return moves
 
 
-if __name__ == '__main__':
-    root = tk.Tk()
-    app = ChessGUI(root)
-    root.mainloop()
+def bishop_moves(board, r, c, player):
+    return sliding_moves(board, r, c, player,
+                         [(-1,-1),(-1,1),(1,-1),(1,1)])
+
+
+def rook_moves(board, r, c, player):
+    return sliding_moves(board, r, c, player,
+                         [(-1,0),(1,0),(0,-1),(0,1)])
+
+
+def queen_moves(board, r, c, player):
+    return bishop_moves(board, r, c, player) + rook_moves(board, r, c, player)
+
+
+def king_moves(board, r, c, player):
+    moves = []
+    for dr in (-1,0,1):
+        for dc in (-1,0,1):
+            if dr == 0 and dc == 0: continue
+            nr, nc = r + dr, c + dc
+            if in_board(nr, nc) and not is_friend(board[nr][nc], player):
+                moves.append((nr, nc))
+    return moves
+
+
+def get_moves(board, r, c):
+    p = board[r][c]
+    if p == ' ': return []
+    player = 'white' if is_white(p) else 'black'
+    kind = p.upper()
+
+    if kind == 'P': return pawn_moves(board, r, c, player)
+    if kind == 'N': return knight_moves(board, r, c, player)
+    if kind == 'B': return bishop_moves(board, r, c, player)
+    if kind == 'R': return rook_moves(board, r, c, player)
+    if kind == 'Q': return queen_moves(board, r, c, player)
+    if kind == 'K': return king_moves(board, r, c, player)
+    return []
+
+
+def valid_moves(board, player):
+    """Все допустимые ходы для игрока."""
+    moves = []
+    for r in range(8):
+        for c in range(8):
+            p = board[r][c]
+            if p == ' ': continue
+            if player == 'white' and not is_white(p): continue
+            if player == 'black' and not is_black(p): continue
+            for to in get_moves(board, r, c):
+                moves.append(((r,c),to))
+    return moves
+
+
+def make_move(board, fr, to):
+    board[to[0]][to[1]] = board[fr[0]][fr[1]]
+    board[fr[0]][fr[1]] = ' '
+
+
+def human_move(board, player):
+    while True:
+        cmd = input("Ход (e2 e4) или exit: ").strip()
+        if cmd.lower() in ('exit', 'стоп'):
+            return None
+        parts = cmd.split()
+        if len(parts) != 2:
+            print("Нужно два поля."); continue
+        fr = parse_square(parts[0]); to = parse_square(parts[1])
+        if not fr or not to:
+            print("Неверный формат."); continue
+        piece = board[fr[0]][fr[1]]
+        if piece == ' ':
+            print("Там нет фигуры."); continue
+        if player == 'white' and not is_white(piece):
+            print("Сейчас ходят белые."); continue
+        if player == 'black' and not is_black(piece):
+            print("Сейчас ходят чёрные."); continue
+        if to not in get_moves(board, fr[0], fr[1]):
+            print("Так эта фигура не ходит."); continue
+        return (fr, to)
+
+
+def main():
+    board = create_board()
+    player = 'white'
+    while True:
+        print_board(board)
+        print(f"Ход: {'белые' if player == 'white' else 'чёрные'}")
+        move = human_move(board, player)
+        if move is None: break
+        make_move(board, *move)
+        player = 'black' if player == 'white' else 'white'
+
+
+main()
