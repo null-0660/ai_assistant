@@ -1,7 +1,7 @@
-# Шахматы GUI — v2: полные правила
+# Шахматы GUI — v3: 3 уровня бота
 
 import tkinter as tk
-from tkinter import messagebox
+from tkinter import messagebox, simpledialog
 import random
 
 
@@ -14,6 +14,8 @@ SELECT = '#f6f669'
 HINT = '#9bcf6b'
 WHITE_COLOR = '#ffffff'
 BLACK_COLOR = '#000000'
+
+PIECE_VALUE = {'P':1,'N':3,'B':3,'R':5,'Q':9,'K':100}
 
 
 def piece_symbol(p):
@@ -219,6 +221,58 @@ def apply_move(board, fr, to):
     board[fr[0]][fr[1]] = ' '
 
 
+def evaluate(board):
+    """Оценка позиции: положительно — в пользу белых."""
+    score = 0
+    for r in range(8):
+        for c in range(8):
+            p = board[r][c]
+            if p == ' ': continue
+            v = PIECE_VALUE.get(p.upper(), 0)
+            score += v if is_white(p) else -v
+    return score
+
+
+def minimax(board, depth, alpha, beta, maximizing, last_move):
+    """Минимакс с альфа-бета отсечением. depth — глубина."""
+    player = 'white' if maximizing else 'black'
+    moves = legal_moves(board, player, last_move)
+
+    if depth == 0 or not moves:
+        return evaluate(board), None
+
+    best_move = random.choice(moves) if moves else None
+
+    if maximizing:
+        max_eval = -float('inf')
+        for m in moves:
+            fr, to = m[0], m[1]
+            test = [row[:] for row in board]
+            apply_move(test, fr, to)
+            ev, _ = minimax(test, depth-1, alpha, beta, False, (fr[0], fr[1], to))
+            if ev > max_eval:
+                max_eval = ev
+                best_move = m
+            alpha = max(alpha, ev)
+            if beta <= alpha:
+                break
+        return max_eval, best_move
+    else:
+        min_eval = float('inf')
+        for m in moves:
+            fr, to = m[0], m[1]
+            test = [row[:] for row in board]
+            apply_move(test, fr, to)
+            ev, _ = minimax(test, depth-1, alpha, beta, True, (fr[0], fr[1], to))
+            if ev < min_eval:
+                min_eval = ev
+                best_move = m
+            beta = min(beta, ev)
+            if beta <= alpha:
+                break
+        return min_eval, best_move
+
+
 class ChessGUI:
     def __init__(self, root):
         self.root = root
@@ -228,6 +282,7 @@ class ChessGUI:
         self.selected = None
         self.player = 'white'
         self.vs_bot = False
+        self.difficulty = 'medium'
         self.game_over = False
         self.last_move = None
         self.highlight = []
@@ -241,22 +296,25 @@ class ChessGUI:
     def show_menu(self):
         self.clear_window()
         self.root.configure(bg='#2d2d2d')
-        tk.Label(self.root, text="ШАХМАТЫ", font=('Arial',28,'bold'),
-                 bg='#2d2d2d', fg='#ffffff').pack(pady=(40,30))
+        tk.Label(self.root, text="ШАХМАТЫ", font=('Arial',32,'bold'),
+                 bg='#2d2d2d', fg='#ffffff').pack(pady=(40,20))
 
-        def btn(text, cmd):
+        def btn(text, cmd, color='#4d4d4d'):
             tk.Button(self.root, text=text, font=('Arial',16,'bold'),
-                      bg='#4d4d4d', fg='#ffffff',
+                      bg=color, fg='#ffffff',
                       activebackground='#6d6d6d', activeforeground='#ffffff',
-                      relief='flat', bd=0, padx=40, pady=14, width=18,
-                      cursor='hand2', command=cmd).pack(pady=8)
+                      relief='flat', bd=0, padx=40, pady=12, width=20,
+                      cursor='hand2', command=cmd).pack(pady=6)
 
-        btn("Два игрока", lambda: self.start_game(False))
-        btn("Против бота", lambda: self.start_game(True))
+        btn("Два игрока", lambda: self.start_game(False, 'medium'))
+        btn("Против бота — Лёгкий", lambda: self.start_game(True, 'easy'), '#3d8b3d')
+        btn("Против бота — Средний", lambda: self.start_game(True, 'medium'), '#c9a227')
+        btn("Против бота — Тяжёлый", lambda: self.start_game(True, 'hard'), '#8b3d3d')
         btn("Выход", self.root.destroy)
 
-    def start_game(self, vs_bot):
+    def start_game(self, vs_bot, difficulty):
         self.vs_bot = vs_bot
+        self.difficulty = difficulty
         self.board = create_board()
         self.selected = None
         self.player = 'white'
@@ -269,8 +327,9 @@ class ChessGUI:
 
     def create_widgets(self):
         self.root.configure(bg='#2d2d2d')
-        self.status = tk.Label(self.root, text="Ход: белые",
-                               font=('Arial',16,'bold'),
+        mode_text = "Два игрока" if not self.vs_bot else f"Бот ({self.difficulty})"
+        self.status = tk.Label(self.root, text=f"{mode_text} | Ход: белые",
+                               font=('Arial',14,'bold'),
                                bg='#2d2d2d', fg='#ffffff')
         self.status.pack(pady=10)
 
@@ -326,7 +385,7 @@ class ChessGUI:
             if self.player == 'white' and not is_white(p): return
             if self.player == 'black' and not is_black(p): return
             self.selected = (r,c)
-            self.highlight = [to for (fr, to) in legal_moves(self.board, self.player, self.last_move) if fr == (r,c)]
+            self.highlight = [m[1] for m in legal_moves(self.board, self.player, self.last_move) if m[0] == (r,c)]
             self.refresh()
             return
 
@@ -336,7 +395,6 @@ class ChessGUI:
             self.refresh()
             return
 
-        # Проверка легальности
         allowed = legal_moves(self.board, self.player, self.last_move)
         found = None
         for m in allowed:
@@ -346,10 +404,9 @@ class ChessGUI:
                 break
 
         if not found:
-            # Может, выбрал другую свою
             if p != ' ' and ((self.player=='white' and is_white(p)) or (self.player=='black' and is_black(p))):
                 self.selected = (r,c)
-                self.highlight = [to for (fr, to) in allowed if fr == (r,c)]
+                self.highlight = [m[1] for m in allowed if m[0] == (r,c)]
                 self.refresh()
                 return
             return
@@ -359,9 +416,8 @@ class ChessGUI:
 
     def do_move(self, fr, to):
         apply_move(self.board, fr, to)
-
-        # Рокировка — двигаем ладью
         piece = self.board[to[0]][to[1]]
+
         if piece.upper() == 'K' and abs(to[1] - fr[1]) == 2:
             row = to[0]
             if to[1] == 6:
@@ -371,7 +427,6 @@ class ChessGUI:
                 self.board[row][3] = self.board[row][0]
                 self.board[row][0] = ' '
 
-        # Превращение
         if piece == 'P' and to[0] == 0:
             self.ask_promotion(to[0], to[1], 'white')
         if piece == 'p' and to[0] == 7:
@@ -381,10 +436,11 @@ class ChessGUI:
         self.selected = None
         self.highlight = []
         self.player = 'black' if self.player == 'white' else 'white'
-        self.status.config(text=f"Ход: {'белые' if self.player=='white' else 'чёрные'}")
+
+        mode_text = "Два игрока" if not self.vs_bot else f"Бот ({self.difficulty})"
+        self.status.config(text=f"{mode_text} | Ход: {'белые' if self.player=='white' else 'чёрные'}")
         self.refresh()
 
-        # Проверка мата/пата
         moves = legal_moves(self.board, self.player, self.last_move)
         if not moves:
             self.game_over = True
@@ -395,13 +451,11 @@ class ChessGUI:
                 messagebox.showinfo("ПАТ", "Ничья.")
             return
 
-        # Шах
         if in_check(self.board, self.player):
-            self.status.config(text=f"ШАХ! Ход: {'белые' if self.player=='white' else 'чёрные'}")
+            self.status.config(text=f"ШАХ! {mode_text} | Ход: {'белые' if self.player=='white' else 'чёрные'}")
 
-        # Ход бота
         if self.vs_bot and self.player == 'black':
-            self.root.after(500, self.bot_turn)
+            self.root.after(400, self.bot_turn)
 
     def ask_promotion(self, r, c, player):
         choice = messagebox.askquestion("Превращение", "В ферзя? (No = ладья)")
@@ -414,16 +468,26 @@ class ChessGUI:
         if self.game_over: return
         moves = legal_moves(self.board, 'black', self.last_move)
         if not moves: return
-        # Простая эвристика: предпочитаем взятия
-        best = []
-        for m in moves:
-            fr, to = m[0], m[1]
-            if self.board[to[0]][to[1]] != ' ':
-                best.append(m)
-        if best:
-            move = random.choice(best)
-        else:
+
+        if self.difficulty == 'easy':
             move = random.choice(moves)
+
+        elif self.difficulty == 'medium':
+            best, best_score = None, -float('inf')
+            for m in moves:
+                fr, to = m[0], m[1]
+                test = [row[:] for row in self.board]
+                apply_move(test, fr, to)
+                score = -evaluate(test)  # в пользу чёрных
+                if score > best_score:
+                    best_score, best = score, m
+            move = best
+
+        else:  # hard
+            _, move = minimax(self.board, 2, -float('inf'), float('inf'), False, self.last_move)
+            if move is None:
+                move = random.choice(moves)
+
         fr, to = move[0], move[1]
         self.do_move(fr, to)
 
