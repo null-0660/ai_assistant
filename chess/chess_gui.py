@@ -1,4 +1,4 @@
-# Шахматы GUI — v5: адаптация и анимация
+# Шахматы GUI — v6: фикс координат, подсветки, отступов
 
 import tkinter as tk
 from tkinter import messagebox
@@ -11,12 +11,14 @@ BLACK_PIECES = {'k':'♚','q':'♛','r':'♜','b':'♝','n':'♞','p':'♟'}
 LIGHT = '#f5e6c8'
 DARK = '#8b6914'
 SELECT = '#f6f669'
-HINT = '#9bcf6b'
+HINT = '#a8e063'
 LAST_MOVE = '#f9d56e'
 WHITE_COLOR = '#ffffff'
 BLACK_COLOR = '#1a1a1a'
 BG_DARK = '#1a1a1a'
 BORDER = '#d4af37'
+
+CELL_SIZE = 56   # размер клетки в пикселях
 
 PIECE_VALUE = {'P':1,'N':3,'B':3,'R':5,'Q':9,'K':100}
 
@@ -271,8 +273,7 @@ class ChessGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("♔ Шахматы ♚")
-        self.root.geometry("600x720")
-        self.root.minsize(520, 650)
+        self.root.minsize(560, 680)
         self.root.configure(bg=BG_DARK)
         self.board = create_board()
         self.selected = None
@@ -283,23 +284,18 @@ class ChessGUI:
         self.last_move = None
         self.highlight = []
         self.buttons = []
-        self._pulse = False
-        self._anim_id = None
         self.center_window()
         self.show_menu()
 
     def center_window(self):
         self.root.update_idletasks()
-        w, h = 600, 720
+        w = CELL_SIZE * 8 + 100
+        h = CELL_SIZE * 8 + 200
         sw = self.root.winfo_screenwidth()
         sh = self.root.winfo_screenheight()
         self.root.geometry(f"{w}x{h}+{(sw-w)//2}+{(sh-h)//2}")
 
     def clear_window(self):
-        if self._anim_id:
-            try: self.root.after_cancel(self._anim_id)
-            except: pass
-            self._anim_id = None
         for w in self.root.winfo_children():
             w.destroy()
 
@@ -358,70 +354,60 @@ class ChessGUI:
         mode_text = "Два игрока" if not self.vs_bot else f"Бот ({self.difficulty})"
         self.status = tk.Label(self.root,
                                text=f"{mode_text}  |  ♔ Ход: белые",
-                               font=('Arial',14,'bold'),
+                               font=('Arial',13,'bold'),
                                bg=BG_DARK, fg=BORDER)
         self.status.pack(pady=8)
 
-        outer = tk.Frame(self.root, bg=BORDER, bd=0)
-        outer.pack(padx=15, pady=10)
-        inner = tk.Frame(outer, bg=BG_DARK, bd=0)
-        inner.pack(padx=3, pady=3)
+        # Единый контейнер: рамка + сетка + координаты
+        outer = tk.Frame(self.root, bg=BORDER)
+        outer.pack(padx=10, pady=8)
 
-        top = tk.Frame(inner, bg=BG_DARK)
-        top.pack()
-        tk.Label(top, text='', width=2, bg=BG_DARK).pack(side='left')
+        # Внутри: сетка 9×9, где крайние — координаты
+        grid = tk.Frame(outer, bg=BG_DARK)
+        grid.pack(padx=2, pady=2)
+
+        # Верхняя строка: пустая + a..h + пустая
+        tk.Label(grid, text='', bg=BG_DARK, width=2).grid(row=0, column=0)
         for c in range(8):
-            tk.Label(top, text='abcdefgh'[c], font=('Arial',10,'bold'),
-                     bg=BG_DARK, fg=BORDER, width=2).pack(side='left')
-        tk.Label(top, text='', width=2, bg=BG_DARK).pack(side='left')
+            tk.Label(grid, text='abcdefgh'[c], font=('Arial',10,'bold'),
+                     bg=BG_DARK, fg=BORDER, width=4).grid(row=0, column=c+1)
+        tk.Label(grid, text='', bg=BG_DARK, width=2).grid(row=0, column=9)
 
-        mid = tk.Frame(inner, bg=BG_DARK)
-        mid.pack()
-
-        left = tk.Frame(mid, bg=BG_DARK)
-        left.pack(side='left')
+        # Доска: слева цифры, по центру кнопки, справа цифры
         for r in range(8):
-            tk.Label(left, text=str(8-r), font=('Arial',10,'bold'),
-                     bg=BG_DARK, fg=BORDER, height=1).pack()
-
-        bf = tk.Frame(mid, bg=BORDER, bd=0)
-        bf.pack(side='left')
-        inner_bf = tk.Frame(bf, bg=BG_DARK)
-        inner_bf.pack(padx=2, pady=2)
-
-        self.buttons = []
-        for r in range(8):
-            row = []
+            tk.Label(grid, text=str(8-r), font=('Arial',10,'bold'),
+                     bg=BG_DARK, fg=BORDER, width=2, height=1
+                     ).grid(row=r+1, column=0)
             for c in range(8):
                 base = LIGHT if (r+c)%2==0 else DARK
-                btn = tk.Button(inner_bf, text='', font=('Arial',30,'bold'),
+                btn = tk.Button(grid, text='', font=('Arial',26,'bold'),
                                 width=2, height=1, bg=base, fg=BLACK_COLOR,
                                 relief='flat', bd=0, activebackground=base,
+                                highlightthickness=0,
                                 cursor='hand2',
                                 command=lambda rr=r, cc=c: self.on_click(rr, cc))
-                btn.grid(row=r, column=c)
-                row.append(btn)
-            self.buttons.append(row)
+                btn.grid(row=r+1, column=c+1, sticky='nsew')
+                self.buttons.append(btn)
+            tk.Label(grid, text=str(8-r), font=('Arial',10,'bold'),
+                     bg=BG_DARK, fg=BORDER, width=2, height=1
+                     ).grid(row=r+1, column=9)
 
-        right = tk.Frame(mid, bg=BG_DARK)
-        right.pack(side='left')
-        for r in range(8):
-            tk.Label(right, text=str(8-r), font=('Arial',10,'bold'),
-                     bg=BG_DARK, fg=BORDER, height=1).pack()
-
-        bot = tk.Frame(inner, bg=BG_DARK)
-        bot.pack()
-        tk.Label(bot, text='', width=2, bg=BG_DARK).pack(side='left')
+        # Нижняя строка
+        tk.Label(grid, text='', bg=BG_DARK, width=2).grid(row=9, column=0)
         for c in range(8):
-            tk.Label(bot, text='abcdefgh'[c], font=('Arial',10,'bold'),
-                     bg=BG_DARK, fg=BORDER, width=2).pack(side='left')
-        tk.Label(bot, text='', width=2, bg=BG_DARK).pack(side='left')
+            tk.Label(grid, text='abcdefgh'[c], font=('Arial',10,'bold'),
+                     bg=BG_DARK, fg=BORDER, width=4).grid(row=9, column=c+1)
+        tk.Label(grid, text='', bg=BG_DARK, width=2).grid(row=9, column=9)
+
+        # Перестроим кнопки в 2D
+        self.buttons_2d = [[self.buttons[r*8 + c] for c in range(8)] for r in range(8)]
+        self.buttons = self.buttons_2d
 
         menu_btn = tk.Button(self.root, text="← В меню", font=('Arial',11,'bold'),
                              bg='#333333', fg=BORDER, relief='flat', bd=0,
                              padx=20, pady=6, cursor='hand2',
                              command=self.show_menu)
-        menu_btn.pack(pady=10)
+        menu_btn.pack(pady=8)
         self.hover_button(menu_btn, '#333333', '#4d4d4d')
 
     def refresh(self):
@@ -431,6 +417,7 @@ class ChessGUI:
                 base = LIGHT if (r+c)%2==0 else DARK
                 btn = self.buttons[r][c]
 
+                # Фон
                 if self.selected == (r,c):
                     btn.config(bg=SELECT)
                 elif self.last_move and (r,c) in (self.last_move[0], self.last_move[2]):
@@ -440,30 +427,12 @@ class ChessGUI:
                 else:
                     btn.config(bg=base)
 
+                # Фигура
                 if p == ' ':
                     btn.config(text='')
                 else:
                     btn.config(text=piece_symbol(p),
                                fg=WHITE_COLOR if is_white(p) else BLACK_COLOR)
-
-    def animate_piece(self, r, c, player, step=14):
-        """Плавное появление фигуры."""
-        if step > 30:
-            return
-        if self.buttons[r][c].cget('text') == '':
-            return
-        self.buttons[r][c].config(font=('Arial', step, 'bold'))
-        self._anim_id = self.root.after(10, lambda: self.animate_piece(r, c, player, step+4))
-
-    def pulse_selected(self):
-        """Пульсация выбранной клетки."""
-        if self.selected is None: return
-        r, c = self.selected
-        base = LIGHT if (r+c)%2==0 else DARK
-        colors = [SELECT, HINT]
-        self._pulse = not self._pulse
-        self.buttons[r][c].config(bg=colors[1 if self._pulse else 0])
-        self._anim_id = self.root.after(500, self.pulse_selected)
 
     def on_click(self, r, c):
         if self.game_over: return
@@ -530,9 +499,6 @@ class ChessGUI:
         mode_text = "Два игрока" if not self.vs_bot else f"Бот ({self.difficulty})"
         self.status.config(text=f"{mode_text}  |  {icon} Ход: {'белые' if self.player=='white' else 'чёрные'}")
         self.refresh()
-
-        # Анимация
-        self.animate_piece(to[0], to[1], piece)
 
         moves = legal_moves(self.board, self.player, self.last_move)
         if not moves:
