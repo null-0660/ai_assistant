@@ -1,19 +1,21 @@
-# Шахматы GUI — v3: 3 уровня бота
+# Шахматы GUI — v4: крутой визуал
 
 import tkinter as tk
-from tkinter import messagebox, simpledialog
+from tkinter import messagebox
 import random
 
 
 WHITE_PIECES = {'K':'♔','Q':'♕','R':'♖','B':'♗','N':'♘','P':'♙'}
 BLACK_PIECES = {'k':'♚','q':'♛','r':'♜','b':'♝','n':'♞','p':'♟'}
 
-LIGHT = '#f0d9b5'
-DARK = '#b58863'
+LIGHT = '#f5e6c8'
+DARK = '#8b6914'
 SELECT = '#f6f669'
 HINT = '#9bcf6b'
 WHITE_COLOR = '#ffffff'
-BLACK_COLOR = '#000000'
+BLACK_COLOR = '#1a1a1a'
+BG_DARK = '#1a1a1a'
+BORDER = '#d4af37'
 
 PIECE_VALUE = {'P':1,'N':3,'B':3,'R':5,'Q':9,'K':100}
 
@@ -222,7 +224,6 @@ def apply_move(board, fr, to):
 
 
 def evaluate(board):
-    """Оценка позиции: положительно — в пользу белых."""
     score = 0
     for r in range(8):
         for c in range(8):
@@ -234,15 +235,11 @@ def evaluate(board):
 
 
 def minimax(board, depth, alpha, beta, maximizing, last_move):
-    """Минимакс с альфа-бета отсечением. depth — глубина."""
     player = 'white' if maximizing else 'black'
     moves = legal_moves(board, player, last_move)
-
     if depth == 0 or not moves:
         return evaluate(board), None
-
     best_move = random.choice(moves) if moves else None
-
     if maximizing:
         max_eval = -float('inf')
         for m in moves:
@@ -251,11 +248,9 @@ def minimax(board, depth, alpha, beta, maximizing, last_move):
             apply_move(test, fr, to)
             ev, _ = minimax(test, depth-1, alpha, beta, False, (fr[0], fr[1], to))
             if ev > max_eval:
-                max_eval = ev
-                best_move = m
+                max_eval = ev; best_move = m
             alpha = max(alpha, ev)
-            if beta <= alpha:
-                break
+            if beta <= alpha: break
         return max_eval, best_move
     else:
         min_eval = float('inf')
@@ -265,19 +260,18 @@ def minimax(board, depth, alpha, beta, maximizing, last_move):
             apply_move(test, fr, to)
             ev, _ = minimax(test, depth-1, alpha, beta, True, (fr[0], fr[1], to))
             if ev < min_eval:
-                min_eval = ev
-                best_move = m
+                min_eval = ev; best_move = m
             beta = min(beta, ev)
-            if beta <= alpha:
-                break
+            if beta <= alpha: break
         return min_eval, best_move
 
 
 class ChessGUI:
     def __init__(self, root):
         self.root = root
-        self.root.title("Шахматы")
+        self.root.title("♔ Шахматы ♚")
         self.root.resizable(False, False)
+        self.root.configure(bg=BG_DARK)
         self.board = create_board()
         self.selected = None
         self.player = 'white'
@@ -295,22 +289,34 @@ class ChessGUI:
 
     def show_menu(self):
         self.clear_window()
-        self.root.configure(bg='#2d2d2d')
-        tk.Label(self.root, text="ШАХМАТЫ", font=('Arial',32,'bold'),
-                 bg='#2d2d2d', fg='#ffffff').pack(pady=(40,20))
+        self.root.configure(bg=BG_DARK)
+
+        # Заголовок с золотом
+        title_frame = tk.Frame(self.root, bg=BG_DARK)
+        title_frame.pack(pady=(50, 10))
+        tk.Label(title_frame, text="♔", font=('Arial',40),
+                 bg=BG_DARK, fg=BORDER).pack(side='left', padx=10)
+        tk.Label(title_frame, text="ШАХМАТЫ", font=('Arial',32,'bold'),
+                 bg=BG_DARK, fg=BORDER).pack(side='left')
+        tk.Label(title_frame, text="♚", font=('Arial',40),
+                 bg=BG_DARK, fg=BORDER).pack(side='left', padx=10)
+
+        tk.Label(self.root, text="Выбери режим",
+                 font=('Arial',12,'italic'),
+                 bg=BG_DARK, fg='#888').pack(pady=(0, 20))
 
         def btn(text, cmd, color='#4d4d4d'):
-            tk.Button(self.root, text=text, font=('Arial',16,'bold'),
+            tk.Button(self.root, text=text, font=('Arial',14,'bold'),
                       bg=color, fg='#ffffff',
                       activebackground='#6d6d6d', activeforeground='#ffffff',
-                      relief='flat', bd=0, padx=40, pady=12, width=20,
+                      relief='flat', bd=0, padx=40, pady=12, width=22,
                       cursor='hand2', command=cmd).pack(pady=6)
 
-        btn("Два игрока", lambda: self.start_game(False, 'medium'))
-        btn("Против бота — Лёгкий", lambda: self.start_game(True, 'easy'), '#3d8b3d')
-        btn("Против бота — Средний", lambda: self.start_game(True, 'medium'), '#c9a227')
-        btn("Против бота — Тяжёлый", lambda: self.start_game(True, 'hard'), '#8b3d3d')
-        btn("Выход", self.root.destroy)
+        btn("Два игрока", lambda: self.start_game(False, 'medium'), '#3d5a80')
+        btn("Бот — Лёгкий", lambda: self.start_game(True, 'easy'), '#3d8b3d')
+        btn("Бот — Средний", lambda: self.start_game(True, 'medium'), '#c9a227')
+        btn("Бот — Тяжёлый", lambda: self.start_game(True, 'hard'), '#8b3d3d')
+        btn("Выход", self.root.destroy, '#333333')
 
     def start_game(self, vs_bot, difficulty):
         self.vs_bot = vs_bot
@@ -326,32 +332,77 @@ class ChessGUI:
         self.refresh()
 
     def create_widgets(self):
-        self.root.configure(bg='#2d2d2d')
-        mode_text = "Два игрока" if not self.vs_bot else f"Бот ({self.difficulty})"
-        self.status = tk.Label(self.root, text=f"{mode_text} | Ход: белые",
-                               font=('Arial',14,'bold'),
-                               bg='#2d2d2d', fg='#ffffff')
-        self.status.pack(pady=10)
+        self.root.configure(bg=BG_DARK)
 
-        bf = tk.Frame(self.root, bg='#2d2d2d')
-        bf.pack(padx=10, pady=10)
+        mode_text = "Два игрока" if not self.vs_bot else f"Бот ({self.difficulty})"
+        self.status = tk.Label(self.root,
+                               text=f"{mode_text}  |  Ход: белые",
+                               font=('Arial',13,'bold'),
+                               bg=BG_DARK, fg=BORDER)
+        self.status.pack(pady=8)
+
+        # Рамка вокруг доски
+        outer = tk.Frame(self.root, bg=BORDER, bd=0)
+        outer.pack(padx=15, pady=10)
+        inner = tk.Frame(outer, bg=BG_DARK, bd=0)
+        inner.pack(padx=3, pady=3)
+
+        # Верхние координаты a-h
+        top = tk.Frame(inner, bg=BG_DARK)
+        top.pack()
+        tk.Label(top, text='', width=2, bg=BG_DARK).pack(side='left')
+        for c in range(8):
+            tk.Label(top, text='abcdefgh'[c], font=('Arial',10,'bold'),
+                     bg=BG_DARK, fg=BORDER, width=2).pack(side='left')
+        tk.Label(top, text='', width=2, bg=BG_DARK).pack(side='left')
+
+        # Доска + левые координаты
+        mid = tk.Frame(inner, bg=BG_DARK)
+        mid.pack()
+
+        left = tk.Frame(mid, bg=BG_DARK)
+        left.pack(side='left')
+        for r in range(8):
+            tk.Label(left, text=str(8-r), font=('Arial',10,'bold'),
+                     bg=BG_DARK, fg=BORDER, height=1).pack()
+
+        bf = tk.Frame(mid, bg=BORDER, bd=0)
+        bf.pack(side='left')
+        inner_bf = tk.Frame(bf, bg=BG_DARK)
+        inner_bf.pack(padx=2, pady=2)
 
         self.buttons = []
         for r in range(8):
             row = []
             for c in range(8):
                 base = LIGHT if (r+c)%2==0 else DARK
-                btn = tk.Button(bf, text='', font=('Arial',28),
+                btn = tk.Button(inner_bf, text='', font=('Arial',30,'bold'),
                                 width=2, height=1, bg=base, fg=BLACK_COLOR,
                                 relief='flat', bd=0, activebackground=base,
+                                cursor='hand2',
                                 command=lambda rr=r, cc=c: self.on_click(rr, cc))
                 btn.grid(row=r, column=c)
                 row.append(btn)
             self.buttons.append(row)
 
-        tk.Button(self.root, text="В меню", font=('Arial',12,'bold'),
-                  bg='#4d4d4d', fg='#ffffff', relief='flat', bd=0,
-                  padx=20, pady=8, cursor='hand2',
+        right = tk.Frame(mid, bg=BG_DARK)
+        right.pack(side='left')
+        for r in range(8):
+            tk.Label(right, text=str(8-r), font=('Arial',10,'bold'),
+                     bg=BG_DARK, fg=BORDER, height=1).pack()
+
+        # Нижние координаты
+        bot = tk.Frame(inner, bg=BG_DARK)
+        bot.pack()
+        tk.Label(bot, text='', width=2, bg=BG_DARK).pack(side='left')
+        for c in range(8):
+            tk.Label(bot, text='abcdefgh'[c], font=('Arial',10,'bold'),
+                     bg=BG_DARK, fg=BORDER, width=2).pack(side='left')
+        tk.Label(bot, text='', width=2, bg=BG_DARK).pack(side='left')
+
+        tk.Button(self.root, text="← В меню", font=('Arial',11,'bold'),
+                  bg='#333333', fg=BORDER, relief='flat', bd=0,
+                  padx=20, pady=6, cursor='hand2',
                   command=self.show_menu).pack(pady=10)
 
     def refresh(self):
@@ -371,7 +422,8 @@ class ChessGUI:
                 if p == ' ':
                     btn.config(text='')
                 else:
-                    btn.config(text=piece_symbol(p),
+                    sym = piece_symbol(p)
+                    btn.config(text=sym,
                                fg=WHITE_COLOR if is_white(p) else BLACK_COLOR)
 
     def on_click(self, r, c):
@@ -400,8 +452,7 @@ class ChessGUI:
         for m in allowed:
             fr, to = m[0], m[1]
             if fr == self.selected and to == (r,c):
-                found = m
-                break
+                found = m; break
 
         if not found:
             if p != ' ' and ((self.player=='white' and is_white(p)) or (self.player=='black' and is_black(p))):
@@ -411,8 +462,7 @@ class ChessGUI:
                 return
             return
 
-        fr, to = self.selected, (r,c)
-        self.do_move(fr, to)
+        self.do_move(self.selected, (r,c))
 
     def do_move(self, fr, to):
         apply_move(self.board, fr, to)
@@ -438,7 +488,7 @@ class ChessGUI:
         self.player = 'black' if self.player == 'white' else 'white'
 
         mode_text = "Два игрока" if not self.vs_bot else f"Бот ({self.difficulty})"
-        self.status.config(text=f"{mode_text} | Ход: {'белые' if self.player=='white' else 'чёрные'}")
+        self.status.config(text=f"{mode_text}  |  Ход: {'белые' if self.player=='white' else 'чёрные'}")
         self.refresh()
 
         moves = legal_moves(self.board, self.player, self.last_move)
@@ -452,7 +502,7 @@ class ChessGUI:
             return
 
         if in_check(self.board, self.player):
-            self.status.config(text=f"ШАХ! {mode_text} | Ход: {'белые' if self.player=='white' else 'чёрные'}")
+            self.status.config(text=f"ШАХ!  {mode_text}  |  Ход: {'белые' if self.player=='white' else 'чёрные'}")
 
         if self.vs_bot and self.player == 'black':
             self.root.after(400, self.bot_turn)
@@ -471,25 +521,22 @@ class ChessGUI:
 
         if self.difficulty == 'easy':
             move = random.choice(moves)
-
         elif self.difficulty == 'medium':
             best, best_score = None, -float('inf')
             for m in moves:
                 fr, to = m[0], m[1]
                 test = [row[:] for row in self.board]
                 apply_move(test, fr, to)
-                score = -evaluate(test)  # в пользу чёрных
+                score = -evaluate(test)
                 if score > best_score:
                     best_score, best = score, m
             move = best
-
-        else:  # hard
+        else:
             _, move = minimax(self.board, 2, -float('inf'), float('inf'), False, self.last_move)
             if move is None:
                 move = random.choice(moves)
 
-        fr, to = move[0], move[1]
-        self.do_move(fr, to)
+        self.do_move(move[0], move[1])
 
 
 if __name__ == '__main__':
