@@ -1,7 +1,19 @@
-# Тетрис — v3: падение, фиксация, линии
+# Тетрис — v4: цвета, ввод без Enter, пауза, рекорд
 
 import random
 import time
+import os
+import sys
+
+RESET = '\033[0m'
+RED = '\033[91m'
+GREEN = '\033[92m'
+YELLOW = '\033[93m'
+BLUE = '\033[94m'
+MAGENTA = '\033[95m'
+CYAN = '\033[96m'
+BOLD = '\033[1m'
+DIM = '\033[2m'
 
 WIDTH = 10
 HEIGHT = 20
@@ -16,6 +28,36 @@ SHAPES = {
     'J': [(1,0), (1,1), (1,2), (0,2)],
 }
 
+COLORS = {
+    'I': CYAN,
+    'O': YELLOW,
+    'T': MAGENTA,
+    'S': GREEN,
+    'Z': RED,
+    'L': BLUE,
+    'J': MAGENTA,
+}
+
+
+def get_key():
+    if sys.platform == 'win32':
+        import msvcrt
+        return msvcrt.getch().decode('utf-8', errors='ignore').lower()
+    else:
+        import termios, tty
+        fd = sys.stdin.fileno()
+        old = termios.tcgetattr(fd)
+        try:
+            tty.setraw(fd)
+            ch = sys.stdin.read(1)
+        finally:
+            termios.tcsetattr(fd, termios.TCSADRAIN, old)
+        return ch.lower()
+
+
+def clear_screen():
+    os.system('cls' if os.name == 'nt' else 'clear')
+
 
 class Tetris:
     def __init__(self):
@@ -25,12 +67,12 @@ class Tetris:
         self.score = 0
         self.lines = 0
         self.game_over = False
+        self.paused = False
         self.fall_counter = 0
-        self.fall_speed = 3   # каждые 3 шага — падение
+        self.fall_speed = 3
         self.spawn_piece()
 
     def spawn_piece(self):
-        """Создаёт новую фигуру сверху."""
         self.piece = random.choice(list(SHAPES.keys()))
         self.piece_x = self.width // 2 - 2
         self.piece_y = 0
@@ -53,23 +95,31 @@ class Tetris:
         for r in range(self.height):
             for c in range(self.width):
                 if self.board[r][c]:
-                    field[r][c] = '█'
+                    field[r][c] = f"{DIM}█{RESET}"
+
+        color = COLORS.get(self.piece, CYAN)
         for (dx, dy) in SHAPES[self.piece]:
             x = self.piece_x + dx
             y = self.piece_y + dy
             if 0 <= x < self.width and 0 <= y < self.height:
-                field[y][x] = '▓'
+                field[y][x] = f"{color}▓{RESET}"
         return field
 
     def print_field(self):
         field = self.build_field()
-        print("\n" + "=" * (self.width + 2))
-        print(f"Счёт: {self.score}   Линии: {self.lines}   Фигура: {self.piece}")
-        print("=" * (self.width + 2))
+        print()
+        print(f"{CYAN}{BOLD}╔{'═' * (self.width + 2)}╗{RESET}")
+        print(f"{CYAN}║{RESET} {YELLOW}Счёт:{RESET} {BOLD}{self.score}{RESET}   "
+              f"{GREEN}Линии:{RESET} {BOLD}{self.lines}{RESET}   "
+              f"{MAGENTA}Фигура:{RESET} {BOLD}{COLORS.get(self.piece, '')}{self.piece}{RESET}  "
+              f"{CYAN}║{RESET}")
+        print(f"{CYAN}{BOLD}╠{'═' * (self.width + 2)}╣{RESET}")
         for row in field:
-            print('|' + ''.join(row) + '|')
-        print("=" * (self.width + 2))
-        print("a — влево, d — вправо, s — вниз, w — поворот, q — выход")
+            print(f"{CYAN}║{RESET}" + ''.join(row) + f"{CYAN}║{RESET}")
+        print(f"{CYAN}{BOLD}╚{'═' * (self.width + 2)}╝{RESET}")
+        print(f"{DIM}a — влево, d — вправо, s — вниз, w — поворот, p — пауза, q — выход{RESET}")
+        if self.paused:
+            print(f"{YELLOW}{BOLD}⏸  ПАУЗА. Нажми p чтобы продолжить.{RESET}")
 
     def move(self, dx, dy):
         if self.can_place(self.piece_x + dx, self.piece_y + dy):
@@ -86,7 +136,6 @@ class Tetris:
         min_x = min(x for x, y in rotated)
         min_y = min(y for x, y in rotated)
         rotated = [(x - min_x, y - min_y) for (x, y) in rotated]
-
         for (dx, dy) in rotated:
             x = self.piece_x + dx
             y = self.piece_y + dy
@@ -97,7 +146,6 @@ class Tetris:
         SHAPES[self.piece] = rotated
 
     def lock_piece(self):
-        """Фиксирует фигуру на поле."""
         for (dx, dy) in SHAPES[self.piece]:
             x = self.piece_x + dx
             y = self.piece_y + dy
@@ -107,7 +155,6 @@ class Tetris:
         self.spawn_piece()
 
     def clear_lines(self):
-        """Удаляет заполненные линии."""
         new_board = []
         cleared = 0
         for row in self.board:
@@ -123,11 +170,16 @@ class Tetris:
             self.score += cleared * 100
 
     def gravity(self):
-        """Автоматическое падение."""
         if not self.move(0, 1):
             self.lock_piece()
 
     def step(self, command):
+        if command == 'p':
+            self.paused = not self.paused
+            return
+        if self.paused:
+            return
+
         if command == 'a':
             self.move(-1, 0)
         elif command == 'd':
@@ -147,14 +199,43 @@ class Tetris:
             self.fall_counter = 0
             self.gravity()
 
-    def play(self):
-        while not self.game_over:
-            self.print_field()
-            command = input("Ход (a/d/s/w/q): ").strip().lower()
-            self.step(command)
+    def save_highscore(self):
+        path = os.path.join(os.path.dirname(__file__), 'highscore.txt')
+        high = 0
+        if os.path.exists(path):
+            try:
+                with open(path, 'r') as f:
+                    high = int(f.read().strip())
+            except:
+                high = 0
+        if self.score > high:
+            high = self.score
+            with open(path, 'w') as f:
+                f.write(str(high))
+            return high, True
+        return high, False
 
+    def play(self):
+        clear_screen()
+        print(f"{CYAN}{BOLD}🧱 ТЕТРИС{RESET}")
+        print(f"{YELLOW}Управление:{RESET} a/d/s/w, p — пауза, q — выход")
+        print()
+        input(f"{DIM}Нажми Enter чтобы начать...{RESET}")
+
+        while not self.game_over:
+            clear_screen()
+            self.print_field()
+            key = get_key()
+            self.step(key)
+            time.sleep(0.05)
+
+        clear_screen()
         self.print_field()
-        print(f"💀 Игра окончена. Счёт: {self.score}   Линии: {self.lines}")
+        high, is_new = self.save_highscore()
+        if is_new:
+            print(f"{YELLOW}{BOLD}🏆 НОВЫЙ РЕКОРД: {self.score}!{RESET}")
+        print(f"{CYAN}Рекорд: {high}{RESET}")
+        print(f"{RED}{BOLD}💀 Игра окончена. Счёт: {self.score}{RESET}")
 
 
 if __name__ == '__main__':
