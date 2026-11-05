@@ -1,4 +1,4 @@
-// Flappy Bird — v1: птица падает и прыгает
+// Flappy Bird — v2: трубы и столкновения
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -6,58 +6,122 @@ const ctx = canvas.getContext('2d');
 const W = canvas.width;
 const H = canvas.height;
 
-// Птица
 const bird = {
-  x: 80,
-  y: H / 2,
-  w: 34,
-  h: 24,
-  vy: 0,
+  x: 80, y: H / 2, w: 34, h: 24, vy: 0,
 };
 
 const GRAVITY = 0.5;
 const JUMP = -8;
+const PIPE_W = 60;
+const PIPE_GAP = 150;
+const PIPE_SPEED = 2.5;
 
+let pipes = [];
+let frame = 0;
 let gameOver = false;
 
-// Прыжок
+function resetGame() {
+  bird.y = H / 2;
+  bird.vy = 0;
+  pipes = [];
+  frame = 0;
+  gameOver = false;
+}
+
 function jump() {
-  if (gameOver) return;
+  if (gameOver) {
+    resetGame();
+    return;
+  }
   bird.vy = JUMP;
 }
 
-// Управление
 document.addEventListener('keydown', (e) => {
-  if (e.code === 'Space') {
-    e.preventDefault();
-    jump();
-  }
+  if (e.code === 'Space') { e.preventDefault(); jump(); }
 });
 canvas.addEventListener('click', jump);
 
-// Обновление физики
+// Создание трубы
+function spawnPipe() {
+  const minTop = 60;
+  const maxTop = H - 40 - PIPE_GAP - 60;
+  const topH = minTop + Math.random() * (maxTop - minTop);
+  pipes.push({
+    x: W,
+    topH: topH,
+    bottomY: topH + PIPE_GAP,
+    scored: false,
+  });
+}
+
+// Столкновения
+function collides(px, py, pw, ph, rx, ry, rw, rh) {
+  return px < rx + rw && px + pw > rx && py < ry + rh && py + ph > ry;
+}
+
 function update() {
   bird.vy += GRAVITY;
   bird.y += bird.vy;
-
-  // Земля
-  if (bird.y + bird.h / 2 > H) {
-    bird.y = H - bird.h / 2;
-    gameOver = true;
-  }
 
   // Потолок
   if (bird.y - bird.h / 2 < 0) {
     bird.y = bird.h / 2;
     bird.vy = 0;
   }
+
+  // Земля
+  if (bird.y + bird.h / 2 > H - 40) {
+    gameOver = true;
+  }
+
+  // Трубы
+  frame++;
+  if (frame % 90 === 0) spawnPipe();
+
+  for (let p of pipes) {
+    p.x -= PIPE_SPEED;
+
+    // Верхняя труба
+    const bx = bird.x - bird.w / 2;
+    const by = bird.y - bird.h / 2;
+
+    if (collides(bx, by, bird.w, bird.h, p.x, 0, PIPE_W, p.topH)) {
+      gameOver = true;
+    }
+    if (collides(bx, by, bird.w, bird.h, p.x, p.bottomY, PIPE_W, H - p.bottomY)) {
+      gameOver = true;
+    }
+  }
+
+  // Удаляем ушедшие трубы
+  pipes = pipes.filter(p => p.x + PIPE_W > 0);
 }
 
-// Рисование
+function drawPipe(p) {
+  // Верхняя
+  ctx.fillStyle = '#73bf2e';
+  ctx.fillRect(p.x, 0, PIPE_W, p.topH);
+  ctx.fillStyle = '#5a9e1f';
+  ctx.fillRect(p.x - 4, p.topH - 20, PIPE_W + 8, 20);
+  ctx.strokeStyle = '#3d6b14';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(p.x - 4, p.topH - 20, PIPE_W + 8, 20);
+
+  // Нижняя
+  ctx.fillStyle = '#73bf2e';
+  ctx.fillRect(p.x, p.bottomY, PIPE_W, H - p.bottomY);
+  ctx.fillStyle = '#5a9e1f';
+  ctx.fillRect(p.x - 4, p.bottomY, PIPE_W + 8, 20);
+  ctx.strokeStyle = '#3d6b14';
+  ctx.strokeRect(p.x - 4, p.bottomY, PIPE_W + 8, 20);
+}
+
 function draw() {
-  // Небо
   ctx.fillStyle = '#4ec0ca';
   ctx.fillRect(0, 0, W, H);
+
+  // Трубы
+  for (let p of pipes) drawPipe(p);
 
   // Земля
   ctx.fillStyle = '#ded895';
@@ -93,22 +157,20 @@ function draw() {
   ctx.closePath();
   ctx.fill();
 
-  // Game Over
   if (gameOver) {
     ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
     ctx.fillRect(0, 0, W, H);
     ctx.fillStyle = '#fff';
     ctx.font = 'bold 32px Courier New';
     ctx.textAlign = 'center';
-    ctx.fillText('GAME OVER', W / 2, H / 2);
+    ctx.fillText('GAME OVER', W / 2, H / 2 - 20);
+    ctx.font = 'bold 18px Courier New';
+    ctx.fillText('Нажми Space', W / 2, H / 2 + 20);
   }
 }
 
-// Игровой цикл
 function loop() {
-  if (!gameOver) {
-    update();
-  }
+  if (!gameOver) update();
   draw();
   requestAnimationFrame(loop);
 }
