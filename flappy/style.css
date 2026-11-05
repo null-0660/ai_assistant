@@ -5,21 +5,47 @@
 }
 
 body {
-  background: linear-gradient(180deg, #4ec0ca 0%, #7fd4dd 100%);
+  background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
   min-height: 100vh;
   display: flex;
+  flex-direction: column;
   justify-content: center;
   align-items: center;
   font-family: 'Courier New', monospace;
+  overflow: hidden;
+  user-select: none;
 }
 
 .game-wrapper {
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
-  border-radius: 8px;
+  position: relative;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6),
+              0 0 0 4px rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
   overflow: hidden;
 }
 
 canvas {
   display: block;
   background: #4ec0ca;
+  cursor: pointer;
+  touch-action: none;
+}
+
+.hint {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 12px;
+  pointer-events: none;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+@media (max-width: 500px) {
+  canvas {
+    width: 100vw;
+    height: auto;
+    max-height: 100vh;
+  }
 }
