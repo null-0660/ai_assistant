@@ -1,27 +1,103 @@
+/* ===== Сброс ===== */
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
 }
 
+/* ===== Переменные ===== */
+:root {
+  --bg-top: #0f0c29;
+  --bg-mid: #302b63;
+  --bg-bot: #24243e;
+  --accent: #f7d51d;
+  --accent-hover: #fff08a;
+  --text: #e8e8f0;
+  --text-dim: rgba(232, 232, 240, 0.5);
+  --glass: rgba(255, 255, 255, 0.06);
+  --glass-border: rgba(255, 255, 255, 0.12);
+  --shadow: 0 20px 60px rgba(0, 0, 0, 0.7);
+  --font: 'Courier New', 'Lucida Console', monospace;
+}
+
+/* ===== Тело ===== */
 body {
-  background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
   min-height: 100vh;
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  font-family: 'Courier New', monospace;
-  overflow: hidden;
+  background:
+    radial-gradient(ellipse at top, rgba(78, 192, 202, 0.15), transparent 60%),
+    linear-gradient(180deg, var(--bg-top) 0%, var(--bg-mid) 50%, var(--bg-bot) 100%);
+  font-family: var(--font);
+  color: var(--text);
+  overflow-x: hidden;
   user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  padding: 20px 10px;
 }
 
+/* Виньетка */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(ellipse at center, transparent 40%, rgba(0, 0, 0, 0.5) 100%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ===== Обёртка ===== */
 .game-wrapper {
   position: relative;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6),
-              0 0 0 4px rgba(255, 255, 255, 0.1);
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  max-width: 100%;
+}
+
+/* ===== Заголовок ===== */
+.game-header {
+  text-align: center;
+  animation: float 3s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+.game-title {
+  font-size: 28px;
+  font-weight: 900;
+  letter-spacing: 2px;
+  color: var(--accent);
+  text-shadow:
+    0 0 10px rgba(247, 213, 29, 0.5),
+    0 0 20px rgba(247, 213, 29, 0.3),
+    3px 3px 0 rgba(0, 0, 0, 0.5);
+  margin-bottom: 4px;
+}
+
+.game-subtitle {
+  font-size: 13px;
+  color: var(--text-dim);
+  letter-spacing: 1px;
+}
+
+/* ===== Canvas ===== */
+.canvas-container {
+  position: relative;
   border-radius: 12px;
   overflow: hidden;
+  box-shadow:
+    var(--shadow),
+    0 0 0 4px var(--glass-border),
+    0 0 40px rgba(78, 192, 202, 0.3);
+  background: #4ec0ca;
 }
 
 canvas {
@@ -29,23 +105,160 @@ canvas {
   background: #4ec0ca;
   cursor: pointer;
   touch-action: none;
+  transition: filter 0.3s ease;
+}
+
+canvas:active {
+  filter: brightness(1.1);
+}
+
+/* ===== Подвал ===== */
+.game-footer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.controls {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.control-key {
+  display: inline-block;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text);
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  border-radius: 6px;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  transition: all 0.2s ease;
+  cursor: default;
+}
+
+.control-key:hover {
+  background: var(--accent);
+  color: #1a1a2e;
+  border-color: var(--accent);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(247, 213, 29, 0.4);
 }
 
 .hint {
-  position: absolute;
-  bottom: 10px;
-  left: 50%;
-  transform: translateX(-50%);
-  color: rgba(255, 255, 255, 0.5);
-  font-size: 12px;
-  pointer-events: none;
-  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+  font-size: 11px;
+  color: var(--text-dim);
+  letter-spacing: 0.5px;
+  animation: pulse 2s ease-in-out infinite;
 }
 
-@media (max-width: 500px) {
+@keyframes pulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+
+/* ===== Адаптив ===== */
+
+/* Планшет */
+@media (max-width: 600px) {
+  .game-title {
+    font-size: 24px;
+  }
+  .game-subtitle {
+    font-size: 12px;
+  }
+  .canvas-container {
+    box-shadow:
+      0 10px 40px rgba(0, 0, 0, 0.6),
+      0 0 0 3px var(--glass-border);
+  }
+}
+
+/* Телефон */
+@media (max-width: 430px) {
+  body {
+    padding: 10px 5px;
+    justify-content: flex-start;
+    padding-top: 20px;
+  }
+
+  .game-wrapper {
+    gap: 10px;
+    width: 100%;
+  }
+
+  .game-title {
+    font-size: 20px;
+  }
+
+  .canvas-container {
+    width: 100%;
+    max-width: 400px;
+    border-radius: 8px;
+  }
+
   canvas {
-    width: 100vw;
-    height: auto;
-    max-height: 100vh;
+    width: 100% !important;
+    height: auto !important;
+    max-height: 75vh;
+    object-fit: contain;
+  }
+
+  .control-key {
+    font-size: 10px;
+    padding: 3px 8px;
+  }
+
+  .hint {
+    font-size: 10px;
+  }
+}
+
+/* Очень маленькие экраны */
+@media (max-width: 360px) {
+  .game-title {
+    font-size: 17px;
+  }
+  .control-key {
+    font-size: 9px;
+    padding: 2px 6px;
+  }
+}
+
+/* Альбомная ориентация на телефоне */
+@media (max-height: 500px) and (orientation: landscape) {
+  body {
+    padding: 5px;
+  }
+  .game-header {
+    display: none;
+  }
+  canvas {
+    max-height: 90vh;
+  }
+}
+
+/* Уважение к reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .game-header,
+  .hint {
+    animation: none;
+  }
+  * {
+    transition: none !important;
+  }
+}
+
+/* Тёмная тема (на всякий случай) */
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg-top: #1a1a2e;
+    --bg-mid: #16213e;
+    --bg-bot: #0f0f1e;
   }
 }
