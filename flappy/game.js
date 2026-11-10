@@ -1,4 +1,4 @@
-// Flappy Bird — v7: геймплей - сложность, пауза, прогресс
+// Flappy Bird — v8: бонусы, золотые трубы, жизни
 
 (function () {
   'use strict';
@@ -24,12 +24,15 @@
   let frame = 0;
   let score = 0;
   let best = parseInt(localStorage.getItem('flappyBest') || '0', 10);
-  let state = 'ready'; // ready | playing | paused | gameover
+  let state = 'ready';
   let groundOffset = 0;
   let shake = 0;
   let time = 0;
   let combo = 0;
   let comboFlash = 0;
+  let lives = 1;
+  let goldenCount = 0;
+  let invincible = 0;
 
   let audioCtx = null;
 
@@ -85,6 +88,9 @@
     score = 0;
     combo = 0;
     comboFlash = 0;
+    lives = 1;
+    goldenCount = 0;
+    invincible = 0;
     state = 'ready';
     shake = 0;
     createClouds();
@@ -129,7 +135,14 @@
     const minTop = 60;
     const maxTop = H - GROUND_H - pipeGap() - 60;
     const topH = minTop + Math.random() * (maxTop - minTop);
-    pipes.push({ x: W, topH, bottomY: topH + pipeGap(), scored: false });
+    const isGolden = Math.random() < 0.15;
+    pipes.push({
+      x: W,
+      topH,
+      bottomY: topH + pipeGap(),
+      scored: false,
+      golden: isGolden,
+    });
   }
 
   function collides(px, py, pw, ph, rx, ry, rw, rh) {
@@ -149,6 +162,8 @@
 
     if (state !== 'playing') return;
 
+    if (invincible > 0) invincible--;
+
     bird.vy = Math.min(bird.vy + GRAVITY, MAX_FALL);
     bird.y += bird.vy;
     bird.rot = Math.max(-0.5, Math.min(1.4, bird.vy * 0.1));
@@ -160,7 +175,7 @@
 
     if (bird.y + bird.h / 2 > H - GROUND_H) {
       bird.y = H - GROUND_H - bird.h / 2;
-      endGame();
+      hit();
       return;
     }
 
@@ -176,20 +191,35 @@
     for (let p of pipes) {
       p.x -= pipeSpeed();
 
-      if (collides(bx, by, bw, bh, p.x, 0, PIPE_W, p.topH)) { endGame(); return; }
-      if (collides(bx, by, bw, bh, p.x, p.bottomY, PIPE_W, H - p.bottomY)) { endGame(); return; }
+      if (invincible === 0) {
+        if (collides(bx, by, bw, bh, p.x, 0, PIPE_W, p.topH)) { hit(); return; }
+        if (collides(bx, by, bw, bh, p.x, p.bottomY, PIPE_W, H - p.bottomY)) { hit(); return; }
+      }
 
       if (!p.scored && p.x + PIPE_W < bird.x) {
         p.scored = true;
-        score++;
         combo++;
         comboFlash = 30;
-        if (combo === 3) {
-          beep(1200, 0.15);
-          score += 2; // бонус
+
+        if (p.golden) {
+          score += 3;
+          goldenCount++;
+          beep(1400, 0.15);
+          if (goldenCount >= 5) {
+            goldenCount = 0;
+            lives++;
+            beep(1800, 0.3);
+          }
         } else {
-          beep(900, 0.1);
+          score += 1;
+          if (combo === 3) {
+            beep(1200, 0.15);
+            score += 2;
+          } else {
+            beep(900, 0.1);
+          }
         }
+
         if (score > best) {
           best = score;
           localStorage.setItem('flappyBest', best);
@@ -200,6 +230,24 @@
     pipes = pipes.filter((p) => p.x + PIPE_W > 0);
     if (shake > 0) shake -= 1;
     if (comboFlash > 0) comboFlash -= 1;
+  }
+
+  function hit() {
+    if (invincible > 0) return;
+
+    lives--;
+    combo = 0;
+    shake = 15;
+    invincible = 90;
+
+    if (lives <= 0) {
+      endGame();
+    } else {
+      beep(300, 0.2, 0.08, 'sawtooth');
+      bird.y = H / 2;
+      bird.vy = 0;
+      bird.rot = 0;
+    }
   }
 
   function endGame() {
@@ -214,7 +262,6 @@
     }
   }
 
-  // ===== Рисование =====
   function drawSun() {
     const sx = W - 60, sy = 80, r = 30;
     ctx.save();
@@ -250,50 +297,77 @@
   }
 
   function drawPipe(p) {
+    const isGolden = p.golden;
+
     ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
     ctx.fillRect(p.x + 6, 0, PIPE_W, p.topH);
     ctx.fillRect(p.x + 6, p.bottomY, PIPE_W, H - p.bottomY);
 
     const topGrad = ctx.createLinearGradient(p.x, 0, p.x + PIPE_W, 0);
-    topGrad.addColorStop(0, '#4a8f1e');
-    topGrad.addColorStop(0.3, '#8fdc4a');
-    topGrad.addColorStop(0.7, '#73bf2e');
-    topGrad.addColorStop(1, '#3d6b14');
+    if (isGolden) {
+      topGrad.addColorStop(0, '#b8860b');
+      topGrad.addColorStop(0.3, '#ffd700');
+      topGrad.addColorStop(0.7, '#ffed4e');
+      topGrad.addColorStop(1, '#b8860b');
+    } else {
+      topGrad.addColorStop(0, '#4a8f1e');
+      topGrad.addColorStop(0.3, '#8fdc4a');
+      topGrad.addColorStop(0.7, '#73bf2e');
+      topGrad.addColorStop(1, '#3d6b14');
+    }
     ctx.fillStyle = topGrad;
     ctx.fillRect(p.x, 0, PIPE_W, p.topH);
 
     const capGrad = ctx.createLinearGradient(p.x - 4, 0, p.x + PIPE_W + 4, 0);
-    capGrad.addColorStop(0, '#3d6b14');
-    capGrad.addColorStop(0.3, '#8fdc4a');
-    capGrad.addColorStop(0.7, '#5a9e1f');
-    capGrad.addColorStop(1, '#2d5b0e');
+    if (isGolden) {
+      capGrad.addColorStop(0, '#b8860b');
+      capGrad.addColorStop(0.3, '#ffd700');
+      capGrad.addColorStop(0.7, '#ffed4e');
+      capGrad.addColorStop(1, '#b8860b');
+    } else {
+      capGrad.addColorStop(0, '#3d6b14');
+      capGrad.addColorStop(0.3, '#8fdc4a');
+      capGrad.addColorStop(0.7, '#5a9e1f');
+      capGrad.addColorStop(1, '#2d5b0e');
+    }
     ctx.fillStyle = capGrad;
     ctx.fillRect(p.x - 4, p.topH - 20, PIPE_W + 8, 20);
-    ctx.strokeStyle = '#2d5b0e';
+    ctx.strokeStyle = isGolden ? '#8b6914' : '#2d5b0e';
     ctx.lineWidth = 2;
     ctx.strokeRect(p.x - 4, p.topH - 20, PIPE_W + 8, 20);
 
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
     ctx.fillRect(p.x + 6, 0, 6, p.topH - 20);
 
     const botGrad = ctx.createLinearGradient(p.x, 0, p.x + PIPE_W, 0);
-    botGrad.addColorStop(0, '#4a8f1e');
-    botGrad.addColorStop(0.3, '#8fdc4a');
-    botGrad.addColorStop(0.7, '#73bf2e');
-    botGrad.addColorStop(1, '#3d6b14');
+    if (isGolden) {
+      botGrad.addColorStop(0, '#b8860b');
+      botGrad.addColorStop(0.3, '#ffd700');
+      botGrad.addColorStop(0.7, '#ffed4e');
+      botGrad.addColorStop(1, '#b8860b');
+    } else {
+      botGrad.addColorStop(0, '#4a8f1e');
+      botGrad.addColorStop(0.3, '#8fdc4a');
+      botGrad.addColorStop(0.7, '#73bf2e');
+      botGrad.addColorStop(1, '#3d6b14');
+    }
     ctx.fillStyle = botGrad;
     ctx.fillRect(p.x, p.bottomY, PIPE_W, H - p.bottomY);
 
     ctx.fillStyle = capGrad;
     ctx.fillRect(p.x - 4, p.bottomY, PIPE_W + 8, 20);
-    ctx.strokeStyle = '#2d5b0e';
+    ctx.strokeStyle = isGolden ? '#8b6914' : '#2d5b0e';
     ctx.strokeRect(p.x - 4, p.bottomY, PIPE_W + 8, 20);
 
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
     ctx.fillRect(p.x + 6, p.bottomY + 20, 6, H - p.bottomY - 20);
   }
 
   function drawBird() {
+    if (invincible > 0 && Math.floor(time / 4) % 2 === 0) {
+      ctx.globalAlpha = 0.4;
+    }
+
     ctx.save();
     ctx.translate(bird.x, bird.y);
     ctx.rotate(bird.rot);
@@ -375,6 +449,7 @@
     ctx.stroke();
 
     ctx.restore();
+    ctx.globalAlpha = 1;
   }
 
   function drawGround() {
@@ -423,14 +498,26 @@
     ctx.strokeText('Рекорд: ' + best, W / 2, 100);
     ctx.fillText('Рекорд: ' + best, W / 2, 100);
 
-    // Комбо
+    // Жизни
+    ctx.font = 'bold 20px Courier New';
+    ctx.fillStyle = '#ff4d6d';
+    for (let i = 0; i < lives; i++) {
+      ctx.fillText('♥', 20 + i * 22, 40);
+    }
+
+    // Золотые
+    if (goldenCount > 0) {
+      ctx.fillStyle = '#ffd700';
+      ctx.font = 'bold 16px Courier New';
+      ctx.fillText('★ ' + goldenCount + '/5', W - 40, 30);
+    }
+
     if (combo >= 2 && comboFlash > 0) {
       ctx.fillStyle = '#f7d51d';
       ctx.font = 'bold 24px Courier New';
       ctx.fillText('x' + combo + ' COMBO!', W / 2, 140);
     }
 
-    // Прогресс до следующей сложности
     const progress = (score % 10) / 10;
     const barW = 200;
     const barX = (W - barW) / 2;
@@ -492,7 +579,6 @@
     if (state === 'paused') {
       ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
       ctx.fillRect(0, 0, W, H);
-
       ctx.fillStyle = '#f7d51d';
       ctx.strokeStyle = '#000';
       ctx.lineWidth = 6;
@@ -500,7 +586,6 @@
       ctx.textAlign = 'center';
       ctx.strokeText('ПАУЗА', W / 2, H / 2);
       ctx.fillText('ПАУЗА', W / 2, H / 2);
-
       ctx.fillStyle = '#fff';
       ctx.font = 'bold 18px Courier New';
       ctx.strokeText('P — продолжить', W / 2, H / 2 + 60);
