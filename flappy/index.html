@@ -2,15 +2,45 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>🐦 Flappy Bird</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#4ec0ca">
+  <meta name="description" content="Flappy Bird — классическая аркада в браузере. Прыгай, уворачивайся от труб, ставь рекорды!">
+  <meta name="author" content="Flappy Bird Clone">
+  <title>🐦 Flappy Bird — играй онлайн</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🐦</text></svg>">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div class="game-wrapper">
-    <canvas id="game" width="400" height="600"></canvas>
-    <div class="hint">Space / клик — прыжок</div>
-  </div>
-  <script src="game.js"></script>
+  <main class="game-wrapper">
+    <header class="game-header">
+      <h1 class="game-title">🐦 Flappy Bird</h1>
+      <p class="game-subtitle">Прыгай и не задень трубы</p>
+    </header>
+
+    <div class="canvas-container">
+      <canvas
+        id="game"
+        width="400"
+        height="600"
+        aria-label="Игровое поле Flappy Bird"
+        role="img"
+      ></canvas>
+    </div>
+
+    <footer class="game-footer">
+      <div class="controls">
+        <span class="control-key">Space</span>
+        <span class="control-key">↑</span>
+        <span class="control-key">Клик</span>
+        <span class="control-key">P</span>
+      </div>
+      <p class="hint">
+        <strong>Space / клик</strong> — прыжок &nbsp;·&nbsp;
+        <strong>P</strong> — пауза
+      </p>
+    </footer>
+  </main>
+
+  <script src="game.js" defer></script>
 </body>
 </html>
