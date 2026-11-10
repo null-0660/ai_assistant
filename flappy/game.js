@@ -1,4 +1,4 @@
-// Flappy Bird — v5: стабильная state machine, физика, рестарт
+// Flappy Bird — v6: улучшенный визуал
 
 (function () {
   'use strict';
@@ -8,7 +8,6 @@
   const W = canvas.width;
   const H = canvas.height;
 
-  // ===== Константы =====
   const GRAVITY = 0.35;
   const JUMP = -6.5;
   const MAX_FALL = 10;
@@ -19,7 +18,6 @@
   const GROUND_H = 60;
   const HITBOX_PAD = 5;
 
-  // ===== Состояние =====
   const bird = { x: 100, y: H / 2, w: 34, h: 24, vy: 0, rot: 0 };
   let pipes = [];
   let clouds = [];
@@ -29,17 +27,15 @@
   let state = 'ready';
   let groundOffset = 0;
   let shake = 0;
+  let time = 0;
 
-  // ===== Аудио =====
   let audioCtx = null;
 
   function initAudio() {
     try {
-      if (!audioCtx) {
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      }
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       if (audioCtx.state === 'suspended') audioCtx.resume();
-    } catch (e) { /* игнор */ }
+    } catch (e) {}
   }
 
   function beep(freq, dur, vol = 0.06, type = 'square') {
@@ -55,10 +51,9 @@
       gain.connect(audioCtx.destination);
       osc.start();
       osc.stop(audioCtx.currentTime + dur);
-    } catch (e) { /* игнор */ }
+    } catch (e) {}
   }
 
-  // ===== Облака =====
   function createClouds() {
     clouds = [];
     for (let i = 0; i < 5; i++) {
@@ -71,7 +66,6 @@
     }
   }
 
-  // ===== Сброс =====
   function resetGame() {
     bird.y = H / 2;
     bird.vy = 0;
@@ -84,7 +78,6 @@
     createClouds();
   }
 
-  // ===== Прыжок / старт / рестарт =====
   function jump() {
     initAudio();
     if (state === 'ready') {
@@ -102,7 +95,6 @@
     }
   }
 
-  // ===== Управление =====
   document.addEventListener('keydown', (e) => {
     if (e.code === 'Space' || e.code === 'ArrowUp') {
       e.preventDefault();
@@ -115,7 +107,6 @@
     jump();
   }, { passive: false });
 
-  // ===== Трубы =====
   function spawnPipe() {
     const minTop = 60;
     const maxTop = H - GROUND_H - PIPE_GAP - 60;
@@ -127,9 +118,9 @@
     return px < rx + rw && px + pw > rx && py < ry + rh && py + ph > ry;
   }
 
-  // ===== Обновление =====
   function update() {
-    // Облака двигаются всегда
+    time++;
+
     for (let c of clouds) {
       c.x -= c.speed;
       if (c.x + c.size < 0) {
@@ -140,28 +131,22 @@
 
     if (state !== 'playing') return;
 
-    // Физика
     bird.vy = Math.min(bird.vy + GRAVITY, MAX_FALL);
     bird.y += bird.vy;
     bird.rot = Math.max(-0.5, Math.min(1.4, bird.vy * 0.1));
 
-    // Потолок
     if (bird.y - bird.h / 2 < 0) {
       bird.y = bird.h / 2;
       bird.vy = 0;
     }
 
-    // Земля
     if (bird.y + bird.h / 2 > H - GROUND_H) {
       bird.y = H - GROUND_H - bird.h / 2;
       endGame();
       return;
     }
 
-    // Земля (анимация)
     groundOffset = (groundOffset + PIPE_SPEED) % 40;
-
-    // Трубы
     frame++;
     if (frame % PIPE_SPAWN === 0) spawnPipe();
 
@@ -173,12 +158,8 @@
     for (let p of pipes) {
       p.x -= PIPE_SPEED;
 
-      if (collides(bx, by, bw, bh, p.x, 0, PIPE_W, p.topH)) {
-        endGame(); return;
-      }
-      if (collides(bx, by, bw, bh, p.x, p.bottomY, PIPE_W, H - p.bottomY)) {
-        endGame(); return;
-      }
+      if (collides(bx, by, bw, bh, p.x, 0, PIPE_W, p.topH)) { endGame(); return; }
+      if (collides(bx, by, bw, bh, p.x, p.bottomY, PIPE_W, H - p.bottomY)) { endGame(); return; }
 
       if (!p.scored && p.x + PIPE_W < bird.x) {
         p.scored = true;
@@ -192,7 +173,6 @@
     }
 
     pipes = pipes.filter((p) => p.x + PIPE_W > 0);
-
     if (shake > 0) shake -= 1;
   }
 
@@ -208,41 +188,98 @@
   }
 
   // ===== Рисование =====
+
+  function drawSun() {
+    const sx = W - 60;
+    const sy = 80;
+    const r = 30;
+
+    // Лучи
+    ctx.save();
+    ctx.translate(sx, sy);
+    ctx.rotate(time * 0.005);
+    ctx.fillStyle = 'rgba(255, 220, 100, 0.4)';
+    for (let i = 0; i < 8; i++) {
+      ctx.rotate(Math.PI / 4);
+      ctx.fillRect(-3, -r - 15, 6, 15);
+    }
+    ctx.restore();
+
+    // Солнце
+    const grad = ctx.createRadialGradient(sx, sy, 5, sx, sy, r);
+    grad.addColorStop(0, '#fff8b0');
+    grad.addColorStop(1, '#f7d51d');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(sx, sy, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#c9a227';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+
   function drawCloud(c) {
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
     ctx.beginPath();
     ctx.arc(c.x, c.y, c.size * 0.6, 0, Math.PI * 2);
     ctx.arc(c.x + c.size * 0.5, c.y, c.size * 0.5, 0, Math.PI * 2);
     ctx.arc(c.x - c.size * 0.5, c.y, c.size * 0.5, 0, Math.PI * 2);
     ctx.arc(c.x + c.size * 0.2, c.y - c.size * 0.3, c.size * 0.4, 0, Math.PI * 2);
     ctx.fill();
+
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+    ctx.beginPath();
+    ctx.arc(c.x - c.size * 0.2, c.y + c.size * 0.2, c.size * 0.3, 0, Math.PI * 2);
+    ctx.fill();
   }
 
   function drawPipe(p) {
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
-    ctx.fillRect(p.x + 4, 0, PIPE_W, p.topH);
-    ctx.fillRect(p.x + 4, p.bottomY, PIPE_W, H - p.bottomY);
+    // Тень
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+    ctx.fillRect(p.x + 6, 0, PIPE_W, p.topH);
+    ctx.fillRect(p.x + 6, p.bottomY, PIPE_W, H - p.bottomY);
 
-    ctx.fillStyle = '#73bf2e';
+    // Верхняя труба — градиент
+    const topGrad = ctx.createLinearGradient(p.x, 0, p.x + PIPE_W, 0);
+    topGrad.addColorStop(0, '#4a8f1e');
+    topGrad.addColorStop(0.3, '#8fdc4a');
+    topGrad.addColorStop(0.7, '#73bf2e');
+    topGrad.addColorStop(1, '#3d6b14');
+    ctx.fillStyle = topGrad;
     ctx.fillRect(p.x, 0, PIPE_W, p.topH);
-    ctx.fillStyle = '#5a9e1f';
+
+    // Шляпка
+    const capGrad = ctx.createLinearGradient(p.x - 4, 0, p.x + PIPE_W + 4, 0);
+    capGrad.addColorStop(0, '#3d6b14');
+    capGrad.addColorStop(0.3, '#8fdc4a');
+    capGrad.addColorStop(0.7, '#5a9e1f');
+    capGrad.addColorStop(1, '#2d5b0e');
+    ctx.fillStyle = capGrad;
     ctx.fillRect(p.x - 4, p.topH - 20, PIPE_W + 8, 20);
-    ctx.strokeStyle = '#3d6b14';
+    ctx.strokeStyle = '#2d5b0e';
     ctx.lineWidth = 2;
     ctx.strokeRect(p.x - 4, p.topH - 20, PIPE_W + 8, 20);
 
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
-    ctx.fillRect(p.x + 4, 0, 8, p.topH - 20);
+    // Блик
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
+    ctx.fillRect(p.x + 6, 0, 6, p.topH - 20);
 
-    ctx.fillStyle = '#73bf2e';
+    // Нижняя труба
+    const botGrad = ctx.createLinearGradient(p.x, 0, p.x + PIPE_W, 0);
+    botGrad.addColorStop(0, '#4a8f1e');
+    botGrad.addColorStop(0.3, '#8fdc4a');
+    botGrad.addColorStop(0.7, '#73bf2e');
+    botGrad.addColorStop(1, '#3d6b14');
+    ctx.fillStyle = botGrad;
     ctx.fillRect(p.x, p.bottomY, PIPE_W, H - p.bottomY);
-    ctx.fillStyle = '#5a9e1f';
+
+    ctx.fillStyle = capGrad;
     ctx.fillRect(p.x - 4, p.bottomY, PIPE_W + 8, 20);
-    ctx.strokeStyle = '#3d6b14';
+    ctx.strokeStyle = '#2d5b0e';
     ctx.strokeRect(p.x - 4, p.bottomY, PIPE_W + 8, 20);
 
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
-    ctx.fillRect(p.x + 4, p.bottomY + 20, 8, H - p.bottomY - 20);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
+    ctx.fillRect(p.x + 6, p.bottomY + 20, 6, H - p.bottomY - 20);
   }
 
   function drawBird() {
@@ -250,12 +287,31 @@
     ctx.translate(bird.x, bird.y);
     ctx.rotate(bird.rot);
 
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+    // Тень
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
     ctx.beginPath();
-    ctx.ellipse(2, 2, bird.w / 2, bird.h / 2, 0, 0, Math.PI * 2);
+    ctx.ellipse(3, 3, bird.w / 2, bird.h / 2, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.fillStyle = '#f7d51d';
+    // Хвост
+    ctx.fillStyle = '#e6c419';
+    ctx.beginPath();
+    ctx.moveTo(-bird.w / 2 + 2, -4);
+    ctx.lineTo(-bird.w / 2 - 8, -8);
+    ctx.lineTo(-bird.w / 2 - 6, 0);
+    ctx.lineTo(-bird.w / 2 - 8, 8);
+    ctx.lineTo(-bird.w / 2 + 2, 4);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = '#333';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Тело
+    const bodyGrad = ctx.createRadialGradient(-4, -6, 4, 0, 0, bird.w / 2 + 4);
+    bodyGrad.addColorStop(0, '#fff08a');
+    bodyGrad.addColorStop(1, '#f7d51d');
+    ctx.fillStyle = bodyGrad;
     ctx.beginPath();
     ctx.ellipse(0, 0, bird.w / 2, bird.h / 2, 0, 0, Math.PI * 2);
     ctx.fill();
@@ -263,35 +319,97 @@
     ctx.lineWidth = 2;
     ctx.stroke();
 
+    // Крыло
     const wingAngle = state === 'playing' ? Math.sin(frame * 0.3) * 0.4 : 0;
     ctx.save();
     ctx.translate(-4, 0);
     ctx.rotate(wingAngle);
     ctx.fillStyle = '#e6c419';
     ctx.beginPath();
-    ctx.ellipse(0, 0, 10, 6, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, 0, 11, 7, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
     ctx.restore();
 
+    // Румянец
+    ctx.fillStyle = 'rgba(255, 150, 150, 0.5)';
+    ctx.beginPath();
+    ctx.arc(4, 4, 4, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Глаз
     ctx.fillStyle = '#fff';
     ctx.beginPath();
-    ctx.arc(8, -5, 5, 0, Math.PI * 2);
+    ctx.arc(9, -6, 6, 0, Math.PI * 2);
     ctx.fill();
+    ctx.strokeStyle = '#333';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Зрачок
     ctx.fillStyle = '#000';
     ctx.beginPath();
-    ctx.arc(9, -5, 2, 0, Math.PI * 2);
+    ctx.arc(10, -6, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+    // Блик
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(11, -7, 1, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.fillStyle = '#f39c12';
+    // Клюв
+    const beakGrad = ctx.createLinearGradient(14, 0, 22, 6);
+    beakGrad.addColorStop(0, '#ffb347');
+    beakGrad.addColorStop(1, '#e67e22');
+    ctx.fillStyle = beakGrad;
     ctx.beginPath();
-    ctx.moveTo(14, 0);
-    ctx.lineTo(22, 3);
-    ctx.lineTo(14, 6);
+    ctx.moveTo(14, -2);
+    ctx.lineTo(23, 3);
+    ctx.lineTo(14, 8);
     ctx.closePath();
     ctx.fill();
+    ctx.strokeStyle = '#a0522d';
+    ctx.lineWidth = 1;
+    ctx.stroke();
 
     ctx.restore();
+  }
+
+  function drawGround() {
+    ctx.fillStyle = '#ded895';
+    ctx.fillRect(0, H - GROUND_H, W, GROUND_H);
+
+    // Трава
+    ctx.fillStyle = '#73bf2e';
+    ctx.fillRect(0, H - GROUND_H, W, 10);
+
+    // Полоски травы
+    ctx.fillStyle = '#5a9e1f';
+    for (let x = -groundOffset; x < W; x += 20) {
+      ctx.fillRect(x, H - GROUND_H, 4, 10);
+    }
+
+    // Текстура земли
+    ctx.fillStyle = '#c9c06a';
+    for (let x = -groundOffset; x < W; x += 40) {
+      ctx.fillRect(x, H - GROUND_H + 20, 20, 4);
+      ctx.fillRect(x + 20, H - GROUND_H + 32, 15, 4);
+      ctx.fillRect(x + 5, H - GROUND_H + 44, 25, 4);
+    }
+
+    // Цветочки
+    for (let x = -groundOffset * 2; x < W; x += 80) {
+      const fx = x + 30;
+      const fy = H - GROUND_H + 6;
+      ctx.fillStyle = '#ff6b9d';
+      ctx.beginPath();
+      ctx.arc(fx, fy, 3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.arc(fx, fy, 1.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
 
   function draw() {
@@ -306,29 +424,20 @@
 
     const sky = ctx.createLinearGradient(0, 0, 0, H);
     sky.addColorStop(0, '#4ec0ca');
-    sky.addColorStop(1, '#8fd8e0');
+    sky.addColorStop(0.5, '#8fd8e0');
+    sky.addColorStop(1, '#c5e8ed');
     ctx.fillStyle = sky;
     ctx.fillRect(0, 0, W, H);
 
+    drawSun();
     for (let c of clouds) drawCloud(c);
     for (let p of pipes) drawPipe(p);
-
-    ctx.fillStyle = '#ded895';
-    ctx.fillRect(0, H - GROUND_H, W, GROUND_H);
-    ctx.fillStyle = '#73bf2e';
-    ctx.fillRect(0, H - GROUND_H, W, 8);
-
-    ctx.fillStyle = '#c9c06a';
-    for (let x = -groundOffset; x < W; x += 20) {
-      ctx.fillRect(x, H - GROUND_H + 12, 10, 4);
-      ctx.fillRect(x + 10, H - GROUND_H + 20, 10, 4);
-    }
-
+    drawGround();
     drawBird();
 
     ctx.fillStyle = '#fff';
     ctx.strokeStyle = '#000';
-    ctx.lineWidth = 4;
+    ctx.lineWidth = 5;
     ctx.font = 'bold 48px Courier New';
     ctx.textAlign = 'center';
     ctx.strokeText(score, W / 2, 70);
@@ -360,10 +469,6 @@
       ctx.font = 'bold 16px Courier New';
       ctx.strokeText('или кликни', W / 2, H / 2 + 90);
       ctx.fillText('или кликни', W / 2, H / 2 + 90);
-
-      ctx.font = 'bold 18px Courier New';
-      ctx.strokeText('Рекорд: ' + best, W / 2, H / 2 + 140);
-      ctx.fillText('Рекорд: ' + best, W / 2, H / 2 + 140);
     }
 
     if (state === 'gameover') {
