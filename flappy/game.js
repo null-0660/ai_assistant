@@ -1,4 +1,4 @@
-// Flappy Bird — v8: бонусы, золотые трубы, жизни
+// Flappy Bird — v9: звук, музыка, mute
 
 (function () {
   'use strict';
@@ -34,7 +34,11 @@
   let goldenCount = 0;
   let invincible = 0;
 
+  // ===== Аудио =====
   let audioCtx = null;
+  let muted = localStorage.getItem('flappyMuted') === 'true';
+  let musicInterval = null;
+  let musicPlaying = false;
 
   function initAudio() {
     try {
@@ -44,7 +48,7 @@
   }
 
   function beep(freq, dur, vol = 0.06, type = 'square') {
-    if (!audioCtx) return;
+    if (muted || !audioCtx) return;
     try {
       const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
@@ -59,6 +63,57 @@
     } catch (e) {}
   }
 
+  // Простая мелодия — зацикленная
+  const MELODY = [
+    [523, 0.15], [659, 0.15], [784, 0.15], [659, 0.15],
+    [523, 0.15], [587, 0.15], [659, 0.3],
+    [440, 0.15], [523, 0.15], [659, 0.15], [523, 0.15],
+    [440, 0.3], [0, 0.15],
+  ];
+
+  function playMusic() {
+    if (muted || !audioCtx || musicPlaying) return;
+    musicPlaying = true;
+    let i = 0;
+    const playNext = () => {
+      if (!musicPlaying || muted) return;
+      const [freq, dur] = MELODY[i % MELODY.length];
+      if (freq > 0) {
+        try {
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.value = freq;
+          gain.gain.setValueAtTime(0.02, audioCtx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start();
+          osc.stop(audioCtx.currentTime + dur);
+        } catch (e) {}
+      }
+      i++;
+      musicInterval = setTimeout(playNext, dur * 1000);
+    };
+    playNext();
+  }
+
+  function stopMusic() {
+    musicPlaying = false;
+    if (musicInterval) {
+      clearTimeout(musicInterval);
+      musicInterval = null;
+    }
+  }
+
+  function toggleMute() {
+    muted = !muted;
+    localStorage.setItem('flappyMuted', muted);
+    if (muted) stopMusic();
+    else if (state === 'playing') playMusic();
+  }
+
+  // ===== Логика =====
   function pipeSpeed() {
     return BASE_SPEED + Math.min(score * 0.08, 3);
   }
@@ -94,6 +149,7 @@
     state = 'ready';
     shake = 0;
     createClouds();
+    stopMusic();
   }
 
   function jump() {
@@ -102,16 +158,19 @@
       state = 'playing';
       bird.vy = JUMP;
       beep(600, 0.08);
+      playMusic();
     } else if (state === 'playing') {
       bird.vy = JUMP;
       beep(600, 0.08);
     } else if (state === 'paused') {
       state = 'playing';
+      playMusic();
     } else if (state === 'gameover') {
       resetGame();
       state = 'playing';
       bird.vy = JUMP;
       beep(600, 0.08);
+      playMusic();
     }
   }
 
@@ -121,13 +180,38 @@
       jump();
     }
     if (e.code === 'KeyP' || e.code === 'Escape') {
-      if (state === 'playing') state = 'paused';
-      else if (state === 'paused') state = 'playing';
+      if (state === 'playing') { state = 'paused'; stopMusic(); }
+      else if (state === 'paused') { state = 'playing'; playMusic(); }
+    }
+    if (e.code === 'KeyM') {
+      toggleMute();
     }
   });
-  canvas.addEventListener('click', jump);
+
+  canvas.addEventListener('click', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const mx = (e.clientX - rect.left) * (W / rect.width);
+    const my = (e.clientY - rect.top) * (H / rect.height);
+
+    // Кнопка mute в правом верхнем углу
+    if (mx > W - 50 && my < 50) {
+      toggleMute();
+      return;
+    }
+    jump();
+  });
+
   canvas.addEventListener('touchstart', (e) => {
     e.preventDefault();
+    const rect = canvas.getBoundingClientRect();
+    const touch = e.touches[0];
+    const mx = (touch.clientX - rect.left) * (W / rect.width);
+    const my = (touch.clientY - rect.top) * (H / rect.height);
+
+    if (mx > W - 50 && my < 50) {
+      toggleMute();
+      return;
+    }
     jump();
   }, { passive: false });
 
@@ -234,12 +318,10 @@
 
   function hit() {
     if (invincible > 0) return;
-
     lives--;
     combo = 0;
     shake = 15;
     invincible = 90;
-
     if (lives <= 0) {
       endGame();
     } else {
@@ -255,6 +337,7 @@
     state = 'gameover';
     shake = 15;
     combo = 0;
+    stopMusic();
     beep(200, 0.4, 0.08, 'sawtooth');
     if (score > best) {
       best = score;
@@ -262,6 +345,7 @@
     }
   }
 
+  // ===== Рисование =====
   function drawSun() {
     const sx = W - 60, sy = 80, r = 30;
     ctx.save();
@@ -501,16 +585,26 @@
     // Жизни
     ctx.font = 'bold 20px Courier New';
     ctx.fillStyle = '#ff4d6d';
+    ctx.textAlign = 'left';
     for (let i = 0; i < lives; i++) {
       ctx.fillText('♥', 20 + i * 22, 40);
     }
 
     // Золотые
     if (goldenCount > 0) {
+      ctx.textAlign = 'right';
       ctx.fillStyle = '#ffd700';
       ctx.font = 'bold 16px Courier New';
-      ctx.fillText('★ ' + goldenCount + '/5', W - 40, 30);
+      ctx.fillText('★ ' + goldenCount + '/5', W - 60, 30);
     }
+
+    // Кнопка mute
+    ctx.textAlign = 'right';
+    ctx.font = 'bold 28px Courier New';
+    ctx.fillStyle = muted ? '#ff4d6d' : '#fff';
+    ctx.fillText(muted ? '🔇' : '🔊', W - 20, 40);
+
+    ctx.textAlign = 'center';
 
     if (combo >= 2 && comboFlash > 0) {
       ctx.fillStyle = '#f7d51d';
@@ -533,7 +627,6 @@
 
   function draw() {
     ctx.save();
-
     if (shake > 0) {
       ctx.translate(
         (Math.random() - 0.5) * shake,
@@ -558,7 +651,6 @@
     if (state === 'ready') {
       ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
       ctx.fillRect(0, 0, W, H);
-
       ctx.fillStyle = '#f7d51d';
       ctx.strokeStyle = '#000';
       ctx.lineWidth = 6;
@@ -568,7 +660,6 @@
       ctx.fillText('FLAPPY', W / 2, H / 2 - 80);
       ctx.strokeText('BIRD', W / 2, H / 2 - 30);
       ctx.fillText('BIRD', W / 2, H / 2 - 30);
-
       ctx.fillStyle = '#fff';
       ctx.font = 'bold 20px Courier New';
       ctx.lineWidth = 4;
@@ -595,29 +686,23 @@
     if (state === 'gameover') {
       ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
       ctx.fillRect(0, 0, W, H);
-
       const pw = 280, ph = 260;
       const px = (W - pw) / 2, py = (H - ph) / 2;
-
       ctx.fillStyle = '#ded895';
       ctx.strokeStyle = '#3d6b14';
       ctx.lineWidth = 4;
       ctx.fillRect(px, py, pw, ph);
       ctx.strokeRect(px, py, pw, ph);
-
       ctx.fillStyle = '#3d6b14';
       ctx.font = 'bold 32px Courier New';
       ctx.textAlign = 'center';
       ctx.fillText('GAME OVER', W / 2, py + 50);
-
       ctx.fillStyle = '#333';
       ctx.font = 'bold 24px Courier New';
       ctx.fillText('Счёт: ' + score, W / 2, py + 110);
-
       ctx.fillStyle = '#c9a227';
       ctx.font = 'bold 18px Courier New';
       ctx.fillText('Рекорд: ' + best, W / 2, py + 150);
-
       ctx.fillStyle = '#4ec0ca';
       ctx.font = 'bold 16px Courier New';
       ctx.fillText('Space — заново', W / 2, py + 210);
