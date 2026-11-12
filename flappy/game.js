@@ -1,4 +1,4 @@
-// Flappy Bird — v10: частицы, след, взрывы
+// Flappy Bird — v11: 3 режима игры
 
 (function () {
   'use strict';
@@ -18,6 +18,12 @@
   const GROUND_H = 60;
   const HITBOX_PAD = 5;
 
+  const MODES = {
+    classic: { name: 'Classic', icon: '🎮', desc: 'Классика' },
+    time: { name: 'Time Attack', icon: '⏱', desc: '60 секунд' },
+    mirror: { name: 'Mirror', icon: '🪞', desc: 'Зеркальные трубы' },
+  };
+
   const bird = { x: 100, y: H / 2, w: 34, h: 24, vy: 0, rot: 0 };
   let pipes = [];
   let clouds = [];
@@ -25,7 +31,8 @@
   let frame = 0;
   let score = 0;
   let best = parseInt(localStorage.getItem('flappyBest') || '0', 10);
-  let state = 'ready';
+  let state = 'menu';
+  let mode = 'classic';
   let groundOffset = 0;
   let shake = 0;
   let time = 0;
@@ -35,8 +42,9 @@
   let goldenCount = 0;
   let invincible = 0;
   let trail = [];
+  let timeLeft = 60;
+  let selectedMode = 0;
 
-  // ===== Аудио =====
   let audioCtx = null;
   let muted = localStorage.getItem('flappyMuted') === 'true';
 
@@ -63,7 +71,6 @@
     } catch (e) {}
   }
 
-  // ===== Частицы =====
   function spawnParticle(x, y, vx, vy, color, size, life) {
     particles.push({ x, y, vx, vy, color, size, life, maxLife: life });
   }
@@ -72,14 +79,8 @@
     for (let i = 0; i < count; i++) {
       const angle = Math.random() * Math.PI * 2;
       const speed = 2 + Math.random() * 4;
-      spawnParticle(
-        x, y,
-        Math.cos(angle) * speed,
-        Math.sin(angle) * speed,
-        color,
-        2 + Math.random() * 4,
-        30 + Math.random() * 30
-      );
+      spawnParticle(x, y, Math.cos(angle) * speed, Math.sin(angle) * speed,
+        color, 2 + Math.random() * 4, 30 + Math.random() * 30);
     }
   }
 
@@ -87,14 +88,8 @@
     for (let i = 0; i < 12; i++) {
       const angle = Math.random() * Math.PI * 2;
       const speed = 1 + Math.random() * 3;
-      spawnParticle(
-        x, y,
-        Math.cos(angle) * speed,
-        Math.sin(angle) * speed,
-        '#ffd700',
-        3 + Math.random() * 3,
-        40 + Math.random() * 20
-      );
+      spawnParticle(x, y, Math.cos(angle) * speed, Math.sin(angle) * speed,
+        '#ffd700', 3 + Math.random() * 3, 40 + Math.random() * 20);
     }
   }
 
@@ -122,7 +117,6 @@
     ctx.globalAlpha = 1;
   }
 
-  // ===== Логика =====
   function pipeSpeed() {
     return BASE_SPEED + Math.min(score * 0.08, 3);
   }
@@ -157,42 +151,66 @@
     lives = 1;
     goldenCount = 0;
     invincible = 0;
-    state = 'ready';
     shake = 0;
+    timeLeft = 60;
     createClouds();
   }
 
-  function jump() {
+  function startGame(m) {
+    mode = m;
+    resetGame();
+    state = 'playing';
+    bird.vy = JUMP;
     initAudio();
-    if (state === 'ready') {
-      state = 'playing';
-      bird.vy = JUMP;
-      beep(600, 0.08);
-    } else if (state === 'playing') {
-      bird.vy = JUMP;
-      beep(600, 0.08);
-    } else if (state === 'paused') {
-      state = 'playing';
-    } else if (state === 'gameover') {
-      resetGame();
-      state = 'playing';
+    beep(600, 0.08);
+  }
+
+  function jump() {
+    if (state === 'playing') {
       bird.vy = JUMP;
       beep(600, 0.08);
     }
   }
 
+  function selectMode(dir) {
+    const keys = Object.keys(MODES);
+    selectedMode = (selectedMode + dir + keys.length) % keys.length;
+    beep(700, 0.05);
+  }
+
   document.addEventListener('keydown', (e) => {
+    if (e.code === 'KeyM') {
+      muted = !muted;
+      localStorage.setItem('flappyMuted', muted);
+      return;
+    }
+
+    if (state === 'menu') {
+      if (e.code === 'ArrowLeft' || e.code === 'KeyA') {
+        e.preventDefault();
+        selectMode(-1);
+      } else if (e.code === 'ArrowRight' || e.code === 'KeyD') {
+        e.preventDefault();
+        selectMode(1);
+      } else if (e.code === 'Space' || e.code === 'Enter') {
+        e.preventDefault();
+        const keys = Object.keys(MODES);
+        startGame(keys[selectedMode]);
+      }
+      return;
+    }
+
     if (e.code === 'Space' || e.code === 'ArrowUp') {
       e.preventDefault();
-      jump();
+      if (state === 'gameover') {
+        state = 'menu';
+      } else {
+        jump();
+      }
     }
     if (e.code === 'KeyP' || e.code === 'Escape') {
       if (state === 'playing') state = 'paused';
       else if (state === 'paused') state = 'playing';
-    }
-    if (e.code === 'KeyM') {
-      muted = !muted;
-      localStorage.setItem('flappyMuted', muted);
     }
   });
 
@@ -200,9 +218,34 @@
     const rect = canvas.getBoundingClientRect();
     const mx = (e.clientX - rect.left) * (W / rect.width);
     const my = (e.clientY - rect.top) * (H / rect.height);
+
     if (mx > W - 50 && my < 50) {
       muted = !muted;
       localStorage.setItem('flappyMuted', muted);
+      return;
+    }
+
+    if (state === 'menu') {
+      const keys = Object.keys(MODES);
+      const boxW = 220, boxH = 100;
+      const totalW = keys.length * boxW + (keys.length - 1) * 20;
+      const startX = (W - totalW) / 2;
+      const boxY = H / 2 - boxH / 2 + 40;
+
+      for (let i = 0; i < keys.length; i++) {
+        const bx = startX + i * (boxW + 20);
+        if (mx > bx && mx < bx + boxW && my > boxY && my < boxY + boxH) {
+          selectedMode = i;
+          startGame(keys[i]);
+          return;
+        }
+      }
+      startGame(keys[selectedMode]);
+      return;
+    }
+
+    if (state === 'gameover') {
+      state = 'menu';
       return;
     }
     jump();
@@ -240,13 +283,18 @@
 
     if (state !== 'playing') return;
 
+    if (mode === 'time') {
+      timeLeft -= 1 / 60;
+      if (timeLeft <= 0) {
+        endGame();
+        return;
+      }
+    }
+
     if (invincible > 0) invincible--;
 
-    // След
     if (frame % 3 === 0) {
-      trail.push({
-        x: bird.x, y: bird.y, life: 15, maxLife: 15, rot: bird.rot
-      });
+      trail.push({ x: bird.x, y: bird.y, life: 15, maxLife: 15, rot: bird.rot });
     }
     for (let i = trail.length - 1; i >= 0; i--) {
       trail[i].life--;
@@ -319,7 +367,7 @@
           }
         }
 
-        if (score > best) {
+        if (score > best && mode === 'classic') {
           best = score;
           localStorage.setItem('flappyBest', best);
         }
@@ -373,7 +421,6 @@
       ctx.fillRect(-3, -r - 15, 6, 15);
     }
     ctx.restore();
-
     const grad = ctx.createRadialGradient(sx, sy, 5, sx, sy, r);
     grad.addColorStop(0, '#fff8b0');
     grad.addColorStop(1, '#f7d51d');
@@ -482,7 +529,6 @@
     if (invincible > 0 && Math.floor(time / 4) % 2 === 0) {
       ctx.globalAlpha = 0.4;
     }
-
     ctx.save();
     ctx.translate(bird.x, bird.y);
     ctx.rotate(bird.rot);
@@ -609,18 +655,26 @@
     ctx.strokeText('Рекорд: ' + best, W / 2, 100);
     ctx.fillText('Рекорд: ' + best, W / 2, 100);
 
+    ctx.font = 'bold 14px Courier New';
+    ctx.fillStyle = '#fff';
+    ctx.textAlign = 'left';
+    ctx.fillText(MODES[mode].icon + ' ' + MODES[mode].name, 15, 30);
+
+    if (mode === 'time') {
+      ctx.textAlign = 'center';
+      ctx.font = 'bold 20px Courier New';
+      ctx.fillStyle = timeLeft < 10 ? '#ff4d6d' : '#f7d51d';
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = 3;
+      ctx.strokeText('⏱ ' + Math.ceil(timeLeft) + 's', W / 2, 130);
+      ctx.fillText('⏱ ' + Math.ceil(timeLeft) + 's', W / 2, 130);
+    }
+
     ctx.font = 'bold 20px Courier New';
     ctx.fillStyle = '#ff4d6d';
     ctx.textAlign = 'left';
     for (let i = 0; i < lives; i++) {
-      ctx.fillText('♥', 20 + i * 22, 40);
-    }
-
-    if (goldenCount > 0) {
-      ctx.textAlign = 'right';
-      ctx.fillStyle = '#ffd700';
-      ctx.font = 'bold 16px Courier New';
-      ctx.fillText('★ ' + goldenCount + '/5', W - 60, 30);
+      ctx.fillText('♥', 20 + i * 22, 55);
     }
 
     ctx.textAlign = 'right';
@@ -629,24 +683,70 @@
     ctx.fillText(muted ? '🔇' : '🔊', W - 20, 40);
 
     ctx.textAlign = 'center';
-
     if (combo >= 2 && comboFlash > 0) {
       ctx.fillStyle = '#f7d51d';
       ctx.font = 'bold 24px Courier New';
-      ctx.fillText('x' + combo + ' COMBO!', W / 2, 140);
+      ctx.fillText('x' + combo + ' COMBO!', W / 2, 170);
+    }
+  }
+
+  function drawMenu() {
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+    ctx.fillRect(0, 0, W, H);
+
+    ctx.fillStyle = '#f7d51d';
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 6;
+    ctx.font = 'bold 42px Courier New';
+    ctx.textAlign = 'center';
+    ctx.strokeText('FLAPPY', W / 2, 80);
+    ctx.fillText('FLAPPY', W / 2, 80);
+    ctx.strokeText('BIRD', W / 2, 130);
+    ctx.fillText('BIRD', W / 2, 130);
+
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 18px Courier New';
+    ctx.lineWidth = 4;
+    ctx.strokeText('Выбери режим', W / 2, 190);
+    ctx.fillText('Выбери режим', W / 2, 190);
+
+    const keys = Object.keys(MODES);
+    const boxW = 220, boxH = 100;
+    const totalW = keys.length * boxW + (keys.length - 1) * 20;
+    const startX = (W - totalW) / 2;
+    const boxY = H / 2 - boxH / 2 + 40;
+
+    for (let i = 0; i < keys.length; i++) {
+      const bx = startX + i * (boxW + 20);
+      const isSelected = i === selectedMode;
+
+      ctx.fillStyle = isSelected ? 'rgba(247, 213, 29, 0.9)' : 'rgba(255, 255, 255, 0.15)';
+      ctx.strokeStyle = isSelected ? '#f7d51d' : '#fff';
+      ctx.lineWidth = isSelected ? 4 : 2;
+      ctx.beginPath();
+      ctx.roundRect(bx, boxY, boxW, boxH, 12);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = isSelected ? '#000' : '#fff';
+      ctx.font = 'bold 32px Courier New';
+      ctx.textAlign = 'center';
+      ctx.fillText(MODES[keys[i]].icon, bx + boxW / 2, boxY + 42);
+
+      ctx.font = 'bold 14px Courier New';
+      ctx.fillText(MODES[keys[i]].name, bx + boxW / 2, boxY + 70);
+
+      ctx.font = '11px Courier New';
+      ctx.fillStyle = isSelected ? '#333' : 'rgba(255, 255, 255, 0.7)';
+      ctx.fillText(MODES[keys[i]].desc, bx + boxW / 2, boxY + 90);
     }
 
-    const progress = (score % 10) / 10;
-    const barW = 200;
-    const barX = (W - barW) / 2;
-    const barY = H - GROUND_H + 25;
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
-    ctx.fillRect(barX, barY, barW, 10);
-    ctx.fillStyle = '#f7d51d';
-    ctx.fillRect(barX, barY, barW * progress, 10);
-    ctx.strokeStyle = '#000';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(barX, barY, barW, 10);
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 14px Courier New';
+    ctx.textAlign = 'center';
+    ctx.lineWidth = 3;
+    ctx.strokeText('← → выбрать · Space играть', W / 2, H - 80);
+    ctx.fillText('← → выбрать · Space играть', W / 2, H - 80);
   }
 
   function draw() {
@@ -672,25 +772,11 @@
     drawTrail();
     drawBird();
     drawParticles();
-    drawHUD();
 
-    if (state === 'ready') {
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
-      ctx.fillRect(0, 0, W, H);
-      ctx.fillStyle = '#f7d51d';
-      ctx.strokeStyle = '#000';
-      ctx.lineWidth = 6;
-      ctx.font = 'bold 42px Courier New';
-      ctx.textAlign = 'center';
-      ctx.strokeText('FLAPPY', W / 2, H / 2 - 80);
-      ctx.fillText('FLAPPY', W / 2, H / 2 - 80);
-      ctx.strokeText('BIRD', W / 2, H / 2 - 30);
-      ctx.fillText('BIRD', W / 2, H / 2 - 30);
-      ctx.fillStyle = '#fff';
-      ctx.font = 'bold 20px Courier New';
-      ctx.lineWidth = 4;
-      ctx.strokeText('Нажми Space', W / 2, H / 2 + 60);
-      ctx.fillText('Нажми Space', W / 2, H / 2 + 60);
+    if (state === 'menu') {
+      drawMenu();
+    } else {
+      drawHUD();
     }
 
     if (state === 'paused') {
@@ -727,7 +813,7 @@
       ctx.fillText('Рекорд: ' + best, W / 2, py + 150);
       ctx.fillStyle = '#4ec0ca';
       ctx.font = 'bold 16px Courier New';
-      ctx.fillText('Space — заново', W / 2, py + 210);
+      ctx.fillText('Space — в меню', W / 2, py + 210);
     }
 
     ctx.restore();
