@@ -1,4 +1,4 @@
-// Flappy Bird — v9: звук, музыка, mute
+// Flappy Bird — v10: частицы, след, взрывы
 
 (function () {
   'use strict';
@@ -21,6 +21,7 @@
   const bird = { x: 100, y: H / 2, w: 34, h: 24, vy: 0, rot: 0 };
   let pipes = [];
   let clouds = [];
+  let particles = [];
   let frame = 0;
   let score = 0;
   let best = parseInt(localStorage.getItem('flappyBest') || '0', 10);
@@ -33,12 +34,11 @@
   let lives = 1;
   let goldenCount = 0;
   let invincible = 0;
+  let trail = [];
 
   // ===== Аудио =====
   let audioCtx = null;
   let muted = localStorage.getItem('flappyMuted') === 'true';
-  let musicInterval = null;
-  let musicPlaying = false;
 
   function initAudio() {
     try {
@@ -63,54 +63,63 @@
     } catch (e) {}
   }
 
-  // Простая мелодия — зацикленная
-  const MELODY = [
-    [523, 0.15], [659, 0.15], [784, 0.15], [659, 0.15],
-    [523, 0.15], [587, 0.15], [659, 0.3],
-    [440, 0.15], [523, 0.15], [659, 0.15], [523, 0.15],
-    [440, 0.3], [0, 0.15],
-  ];
-
-  function playMusic() {
-    if (muted || !audioCtx || musicPlaying) return;
-    musicPlaying = true;
-    let i = 0;
-    const playNext = () => {
-      if (!musicPlaying || muted) return;
-      const [freq, dur] = MELODY[i % MELODY.length];
-      if (freq > 0) {
-        try {
-          const osc = audioCtx.createOscillator();
-          const gain = audioCtx.createGain();
-          osc.type = 'triangle';
-          osc.frequency.value = freq;
-          gain.gain.setValueAtTime(0.02, audioCtx.currentTime);
-          gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
-          osc.connect(gain);
-          gain.connect(audioCtx.destination);
-          osc.start();
-          osc.stop(audioCtx.currentTime + dur);
-        } catch (e) {}
-      }
-      i++;
-      musicInterval = setTimeout(playNext, dur * 1000);
-    };
-    playNext();
+  // ===== Частицы =====
+  function spawnParticle(x, y, vx, vy, color, size, life) {
+    particles.push({ x, y, vx, vy, color, size, life, maxLife: life });
   }
 
-  function stopMusic() {
-    musicPlaying = false;
-    if (musicInterval) {
-      clearTimeout(musicInterval);
-      musicInterval = null;
+  function explode(x, y, color, count) {
+    for (let i = 0; i < count; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 2 + Math.random() * 4;
+      spawnParticle(
+        x, y,
+        Math.cos(angle) * speed,
+        Math.sin(angle) * speed,
+        color,
+        2 + Math.random() * 4,
+        30 + Math.random() * 30
+      );
     }
   }
 
-  function toggleMute() {
-    muted = !muted;
-    localStorage.setItem('flappyMuted', muted);
-    if (muted) stopMusic();
-    else if (state === 'playing') playMusic();
+  function starsBurst(x, y) {
+    for (let i = 0; i < 12; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 1 + Math.random() * 3;
+      spawnParticle(
+        x, y,
+        Math.cos(angle) * speed,
+        Math.sin(angle) * speed,
+        '#ffd700',
+        3 + Math.random() * 3,
+        40 + Math.random() * 20
+      );
+    }
+  }
+
+  function updateParticles() {
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i];
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += 0.15;
+      p.vx *= 0.98;
+      p.life--;
+      if (p.life <= 0) particles.splice(i, 1);
+    }
+  }
+
+  function drawParticles() {
+    for (let p of particles) {
+      const alpha = p.life / p.maxLife;
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size * alpha, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
   }
 
   // ===== Логика =====
@@ -139,6 +148,8 @@
     bird.vy = 0;
     bird.rot = 0;
     pipes = [];
+    particles = [];
+    trail = [];
     frame = 0;
     score = 0;
     combo = 0;
@@ -149,7 +160,6 @@
     state = 'ready';
     shake = 0;
     createClouds();
-    stopMusic();
   }
 
   function jump() {
@@ -158,19 +168,16 @@
       state = 'playing';
       bird.vy = JUMP;
       beep(600, 0.08);
-      playMusic();
     } else if (state === 'playing') {
       bird.vy = JUMP;
       beep(600, 0.08);
     } else if (state === 'paused') {
       state = 'playing';
-      playMusic();
     } else if (state === 'gameover') {
       resetGame();
       state = 'playing';
       bird.vy = JUMP;
       beep(600, 0.08);
-      playMusic();
     }
   }
 
@@ -180,11 +187,12 @@
       jump();
     }
     if (e.code === 'KeyP' || e.code === 'Escape') {
-      if (state === 'playing') { state = 'paused'; stopMusic(); }
-      else if (state === 'paused') { state = 'playing'; playMusic(); }
+      if (state === 'playing') state = 'paused';
+      else if (state === 'paused') state = 'playing';
     }
     if (e.code === 'KeyM') {
-      toggleMute();
+      muted = !muted;
+      localStorage.setItem('flappyMuted', muted);
     }
   });
 
@@ -192,28 +200,13 @@
     const rect = canvas.getBoundingClientRect();
     const mx = (e.clientX - rect.left) * (W / rect.width);
     const my = (e.clientY - rect.top) * (H / rect.height);
-
-    // Кнопка mute в правом верхнем углу
     if (mx > W - 50 && my < 50) {
-      toggleMute();
+      muted = !muted;
+      localStorage.setItem('flappyMuted', muted);
       return;
     }
     jump();
   });
-
-  canvas.addEventListener('touchstart', (e) => {
-    e.preventDefault();
-    const rect = canvas.getBoundingClientRect();
-    const touch = e.touches[0];
-    const mx = (touch.clientX - rect.left) * (W / rect.width);
-    const my = (touch.clientY - rect.top) * (H / rect.height);
-
-    if (mx > W - 50 && my < 50) {
-      toggleMute();
-      return;
-    }
-    jump();
-  }, { passive: false });
 
   function spawnPipe() {
     const minTop = 60;
@@ -235,6 +228,7 @@
 
   function update() {
     time++;
+    updateParticles();
 
     for (let c of clouds) {
       c.x -= c.speed;
@@ -247,6 +241,17 @@
     if (state !== 'playing') return;
 
     if (invincible > 0) invincible--;
+
+    // След
+    if (frame % 3 === 0) {
+      trail.push({
+        x: bird.x, y: bird.y, life: 15, maxLife: 15, rot: bird.rot
+      });
+    }
+    for (let i = trail.length - 1; i >= 0; i--) {
+      trail[i].life--;
+      if (trail[i].life <= 0) trail.splice(i, 1);
+    }
 
     bird.vy = Math.min(bird.vy + GRAVITY, MAX_FALL);
     bird.y += bird.vy;
@@ -276,8 +281,16 @@
       p.x -= pipeSpeed();
 
       if (invincible === 0) {
-        if (collides(bx, by, bw, bh, p.x, 0, PIPE_W, p.topH)) { hit(); return; }
-        if (collides(bx, by, bw, bh, p.x, p.bottomY, PIPE_W, H - p.bottomY)) { hit(); return; }
+        if (collides(bx, by, bw, bh, p.x, 0, PIPE_W, p.topH)) {
+          explode(bird.x, bird.y, '#f7d51d', 20);
+          hit();
+          return;
+        }
+        if (collides(bx, by, bw, bh, p.x, p.bottomY, PIPE_W, H - p.bottomY)) {
+          explode(bird.x, bird.y, '#f7d51d', 20);
+          hit();
+          return;
+        }
       }
 
       if (!p.scored && p.x + PIPE_W < bird.x) {
@@ -288,6 +301,7 @@
         if (p.golden) {
           score += 3;
           goldenCount++;
+          starsBurst(bird.x, bird.y);
           beep(1400, 0.15);
           if (goldenCount >= 5) {
             goldenCount = 0;
@@ -299,6 +313,7 @@
           if (combo === 3) {
             beep(1200, 0.15);
             score += 2;
+            explode(bird.x, bird.y, '#f7d51d', 10);
           } else {
             beep(900, 0.1);
           }
@@ -337,7 +352,8 @@
     state = 'gameover';
     shake = 15;
     combo = 0;
-    stopMusic();
+    explode(bird.x, bird.y, '#f7d51d', 40);
+    explode(bird.x, bird.y, '#ff6b9d', 20);
     beep(200, 0.4, 0.08, 'sawtooth');
     if (score > best) {
       best = score;
@@ -382,7 +398,6 @@
 
   function drawPipe(p) {
     const isGolden = p.golden;
-
     ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
     ctx.fillRect(p.x + 6, 0, PIPE_W, p.topH);
     ctx.fillRect(p.x + 6, p.bottomY, PIPE_W, H - p.bottomY);
@@ -445,6 +460,22 @@
 
     ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
     ctx.fillRect(p.x + 6, p.bottomY + 20, 6, H - p.bottomY - 20);
+  }
+
+  function drawTrail() {
+    for (let t of trail) {
+      const alpha = (t.life / t.maxLife) * 0.3;
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = '#f7d51d';
+      ctx.save();
+      ctx.translate(t.x, t.y);
+      ctx.rotate(t.rot);
+      ctx.beginPath();
+      ctx.ellipse(0, 0, bird.w / 2, bird.h / 2, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+    ctx.globalAlpha = 1;
   }
 
   function drawBird() {
@@ -539,21 +570,17 @@
   function drawGround() {
     ctx.fillStyle = '#ded895';
     ctx.fillRect(0, H - GROUND_H, W, GROUND_H);
-
     ctx.fillStyle = '#73bf2e';
     ctx.fillRect(0, H - GROUND_H, W, 10);
-
     ctx.fillStyle = '#5a9e1f';
     for (let x = -groundOffset; x < W; x += 20) {
       ctx.fillRect(x, H - GROUND_H, 4, 10);
     }
-
     ctx.fillStyle = '#c9c06a';
     for (let x = -groundOffset; x < W; x += 40) {
       ctx.fillRect(x, H - GROUND_H + 20, 20, 4);
       ctx.fillRect(x + 20, H - GROUND_H + 32, 15, 4);
     }
-
     for (let x = -groundOffset * 2; x < W; x += 80) {
       const fx = x + 30;
       const fy = H - GROUND_H + 6;
@@ -582,7 +609,6 @@
     ctx.strokeText('Рекорд: ' + best, W / 2, 100);
     ctx.fillText('Рекорд: ' + best, W / 2, 100);
 
-    // Жизни
     ctx.font = 'bold 20px Courier New';
     ctx.fillStyle = '#ff4d6d';
     ctx.textAlign = 'left';
@@ -590,7 +616,6 @@
       ctx.fillText('♥', 20 + i * 22, 40);
     }
 
-    // Золотые
     if (goldenCount > 0) {
       ctx.textAlign = 'right';
       ctx.fillStyle = '#ffd700';
@@ -598,7 +623,6 @@
       ctx.fillText('★ ' + goldenCount + '/5', W - 60, 30);
     }
 
-    // Кнопка mute
     ctx.textAlign = 'right';
     ctx.font = 'bold 28px Courier New';
     ctx.fillStyle = muted ? '#ff4d6d' : '#fff';
@@ -645,7 +669,9 @@
     for (let c of clouds) drawCloud(c);
     for (let p of pipes) drawPipe(p);
     drawGround();
+    drawTrail();
     drawBird();
+    drawParticles();
     drawHUD();
 
     if (state === 'ready') {
@@ -677,10 +703,6 @@
       ctx.textAlign = 'center';
       ctx.strokeText('ПАУЗА', W / 2, H / 2);
       ctx.fillText('ПАУЗА', W / 2, H / 2);
-      ctx.fillStyle = '#fff';
-      ctx.font = 'bold 18px Courier New';
-      ctx.strokeText('P — продолжить', W / 2, H / 2 + 60);
-      ctx.fillText('P — продолжить', W / 2, H / 2 + 60);
     }
 
     if (state === 'gameover') {
