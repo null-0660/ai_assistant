@@ -1,4 +1,4 @@
-# Текстовый квест — v2: локации и переходы
+# Текстовый квест — v3: NPC, торговец, бой
 
 import random
 
@@ -8,7 +8,7 @@ class Hero:
         self.name = name
         self.hp = 100
         self.max_hp = 100
-        self.gold = 0
+        self.gold = 20
         self.inventory = []
 
     def show_stats(self):
@@ -36,9 +36,42 @@ class Hero:
         self.gold += amount
         print(f"💰 +{amount} золота.")
 
+    def spend_gold(self, amount):
+        if self.gold >= amount:
+            self.gold -= amount
+            return True
+        return False
+
     def add_item(self, item):
         self.inventory.append(item)
         print(f"🎒 Получен предмет: {item}")
+
+    def is_alive(self):
+        return self.hp > 0
+
+
+class NPC:
+    def __init__(self, name, dialogue, is_enemy=False, hp=20, dmg=5):
+        self.name = name
+        self.dialogue = dialogue
+        self.is_enemy = is_enemy
+        self.hp = hp
+        self.max_hp = hp
+        self.dmg = dmg
+
+    def show(self):
+        if self.is_enemy:
+            print(f"👹 {self.name} (HP: {self.hp}/{self.max_hp}, урон: {self.dmg})")
+        else:
+            print(f"🧑 {self.name}: «{self.dialogue}»")
+
+    def attack(self, hero):
+        print(f"{self.name} атакует!")
+        hero.take_damage(self.dmg)
+
+    def take_damage(self, dmg):
+        self.hp -= dmg
+        print(f"⚔ {self.name} получает {dmg} урона. HP: {max(0, self.hp)}")
 
     def is_alive(self):
         return self.hp > 0
@@ -53,7 +86,7 @@ class Game:
         },
         "cave": {
             "name": "Пещера",
-            "desc": "Тёмно, сыро, откуда-то капает вода.",
+            "desc": "Тёмно, сыро, откуда-то капает вода. Кто-то рычит в темноте...",
             "exits": {"south": "forest"},
         },
         "village": {
@@ -67,6 +100,11 @@ class Game:
         self.hero = Hero()
         self.running = True
         self.location = "forest"
+        self.npcs = {
+            "forest": [NPC("Лесник", "Будь осторожен в пещере, путник.")],
+            "cave": [NPC("Гоблин", "Гр-р-р! Убирайся!", is_enemy=True, hp=30, dmg=8)],
+            "village": [NPC("Торговец", "Зелья! Зелья! Всего 10 золота!")],
+        }
 
     def print_location(self):
         loc = self.LOCATIONS[self.location]
@@ -76,6 +114,9 @@ class Game:
         print(loc["desc"])
         if loc["exits"]:
             print("\nВыходы:", ", ".join(loc["exits"].keys()))
+        if self.npcs.get(self.location):
+            for npc in self.npcs[self.location]:
+                npc.show()
 
     def look_around(self):
         events = [
@@ -96,6 +137,59 @@ class Game:
         else:
             print("Туда пройти нельзя.")
 
+    def talk_or_fight(self):
+        if not self.npcs.get(self.location):
+            print("Тут никого нет.")
+            return
+
+        npc = self.npcs[self.location][0]
+
+        if npc.is_enemy:
+            print(f"\n⚔ Бой с {npc.name}!")
+            self.combat(npc)
+        else:
+            print(f"\n{npc.name} говорит: «{npc.dialogue}»")
+            if npc.name == "Торговец":
+                self.trade()
+
+    def combat(self, npc):
+        while npc.is_alive() and self.hero.is_alive():
+            print(f"\n{self.hero.name} HP: {self.hero.hp} | {npc.name} HP: {npc.hp}")
+            print("1. Атаковать")
+            print("2. Бежать")
+            choice = input("> ").strip()
+
+            if choice == "1":
+                dmg = random.randint(8, 15)
+                npc.take_damage(dmg)
+                if npc.is_alive():
+                    npc.attack(self.hero)
+            elif choice == "2":
+                print("Ты убегаешь!")
+                return
+            else:
+                print("Неизвестная команда.")
+
+        if not npc.is_alive():
+            print(f"\n🏆 Ты победил {npc.name}!")
+            self.hero.add_gold(15)
+            self.npcs[self.location].remove(npc)
+        elif not self.hero.is_alive():
+            print("💀 Ты пал в бою.")
+
+    def trade(self):
+        print("\n🛒 Торговец предлагает:")
+        print("1. Купить зелье (10 золота, +30 HP)")
+        print("2. Уйти")
+        choice = input("> ").strip()
+
+        if choice == "1":
+            if self.hero.spend_gold(10):
+                self.hero.heal(30)
+                self.hero.add_item("Зелье")
+            else:
+                print("Не хватает золота!")
+
     def play(self):
         print("🌲 Добро пожаловать в Тёмный Лес!")
         print("Ты — Странник. Впереди тебя ждут испытания.")
@@ -107,7 +201,8 @@ class Game:
             print("\nЧто будешь делать?")
             print("1. Осмотреться")
             print("2. Идти (north/south/east/west)")
-            print("3. Выход")
+            print("3. Поговорить / Атаковать")
+            print("4. Выход")
             choice = input("> ").strip().lower()
 
             if choice == "1":
@@ -116,6 +211,8 @@ class Game:
                 direction = input("Куда идти? (north/south/east/west): ").strip().lower()
                 self.move(direction)
             elif choice == "3":
+                self.talk_or_fight()
+            elif choice == "4":
                 print("Конец игры.")
                 self.running = False
             else:
