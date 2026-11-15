@@ -1,4 +1,4 @@
-# Текстовый квест — v4: квест, амулет, финал
+# Текстовый квест — v5: русский интерфейс, удобное управление
 
 import random
 
@@ -13,16 +13,18 @@ class Hero:
         self.has_amulet = False
 
     def show_stats(self):
-        print(f"\n--- {self.name} ---")
-        print(f"HP: {self.hp}/{self.max_hp}")
-        print(f"Золото: {self.gold}")
+        print(f"\n┌{'─' * 30}┐")
+        print(f"│ 👤 {self.name:<25} │")
+        print(f"│ ❤️  HP: {self.hp}/{self.max_hp:<17} │")
+        print(f"│ 🪙 Золото: {self.gold:<18} │")
         if self.inventory:
-            print(f"Инвентарь: {', '.join(self.inventory)}")
+            inv_str = ', '.join(self.inventory)
+            print(f"│ 🎒 Инвентарь: {inv_str[:16]:<14} │")
         else:
-            print("Инвентарь: пусто")
+            print(f"│ 🎒 Инвентарь: пусто           │")
         if self.has_amulet:
-            print("🔮 Амулет: ЕСТЬ")
-        print("-------------------")
+            print(f"│ 🔮 Амулет: ЕСТЬ               │")
+        print(f"└{'─' * 30}┘")
 
     def take_damage(self, dmg):
         self.hp -= dmg
@@ -85,17 +87,17 @@ class Game:
         "forest": {
             "name": "Тёмный Лес",
             "desc": "Деревья шелестят, туман стелется по земле.",
-            "exits": {"north": "cave", "east": "village"},
+            "exits": {"Север (Пещера)": "cave", "Восток (Деревня)": "village"},
         },
         "cave": {
             "name": "Пещера",
             "desc": "Тёмно, сыро, откуда-то капает вода. Кто-то рычит в темноте...",
-            "exits": {"south": "forest"},
+            "exits": {"Юг (Лес)": "forest"},
         },
         "village": {
             "name": "Деревня",
             "desc": "Небольшая деревня. Тут есть рынок и трактир.",
-            "exits": {"west": "forest"},
+            "exits": {"Запад (Лес)": "forest"},
         },
     }
 
@@ -112,13 +114,13 @@ class Game:
 
     def print_location(self):
         loc = self.LOCATIONS[self.location]
-        print("\n" + "=" * 40)
-        print(f"📍 {loc['name']}")
-        print("=" * 40)
+        print(f"\n╔{'═' * 40}╗")
+        print(f"║ 📍 {loc['name']:<35} ║")
+        print(f"╚{'═' * 40}╝")
         print(loc["desc"])
-        if loc["exits"]:
-            print("\nВыходы:", ", ".join(loc["exits"].keys()))
+        
         if self.npcs.get(self.location):
+            print("\n👥 Кто здесь:")
             for npc in self.npcs[self.location]:
                 npc.show()
 
@@ -130,31 +132,47 @@ class Game:
             ("Ничего интересного.", lambda: None),
         ]
         text, action = random.choice(events)
-        print(text)
+        print(f"\n🔍 {text}")
         action()
 
-    def move(self, direction):
+    def move(self):
         loc = self.LOCATIONS[self.location]
-        if direction in loc["exits"]:
-            self.location = loc["exits"][direction]
-            print(f"Ты идёшь на {direction}...")
-        else:
-            print("Туда пройти нельзя.")
+        exits = list(loc["exits"].keys())
+        
+        print("\n🚶 Куда идти?")
+        for i, exit_name in enumerate(exits, 1):
+            print(f"{i}. {exit_name}")
+        print(f"{len(exits) + 1}. Остаться на месте")
+        
+        choice = input("> ").strip()
+        
+        try:
+            choice_idx = int(choice) - 1
+            if 0 <= choice_idx < len(exits):
+                destination = exits[choice_idx]
+                self.location = loc["exits"][destination]
+                print(f"Ты идёшь: {destination}...")
+            elif choice_idx == len(exits):
+                pass
+            else:
+                print("Неверный выбор.")
+        except ValueError:
+            print("Введи цифру.")
 
     def talk_or_fight(self):
         if not self.npcs.get(self.location):
-            print("Тут никого нет.")
+            print("\nТут никого нет.")
             return
 
         npc = self.npcs[self.location][0]
 
         if npc.is_enemy:
-            print(f"\n⚔ Бой с {npc.name}!")
+            print(f"\n⚔ Начинается бой с {npc.name}!")
             self.combat(npc)
         else:
-            print(f"\n{npc.name} говорит: «{npc.dialogue}»")
+            print(f"\n🗣 {npc.name} говорит: «{npc.dialogue}»")
             if npc.name == "Старейшина" and self.hero.has_amulet:
-                print("🧓 Старейшина: «Ты нашёл амулет! Спасибо тебе, путник!»")
+                print("\n🧓 Старейшина: «Ты нашёл амулет! Спасибо тебе, путник!»")
                 print("🏆 КВЕСТ ЗАВЕРШЁН! Ты победил!")
                 self.quest_complete = True
                 self.running = False
@@ -163,7 +181,7 @@ class Game:
 
     def combat(self, npc):
         while npc.is_alive() and self.hero.is_alive():
-            print(f"\n{self.hero.name} HP: {self.hero.hp} | {npc.name} HP: {npc.hp}")
+            print(f"\n⚔ БОЙ: {self.hero.name} (HP: {self.hero.hp}) vs {npc.name} (HP: {npc.hp})")
             print("1. Атаковать")
             print("2. Бежать")
             choice = input("> ").strip()
@@ -177,7 +195,7 @@ class Game:
                 print("Ты убегаешь!")
                 return
             else:
-                print("Неизвестная команда.")
+                print("Неверный выбор.")
 
         if not npc.is_alive():
             print(f"\n🏆 Ты победил {npc.name}!")
@@ -198,9 +216,9 @@ class Game:
             self.hero.show_stats()
             self.print_location()
 
-            print("\nЧто будешь делать?")
+            print("\n📋 Что будешь делать?")
             print("1. Осмотреться")
-            print("2. Идти (north/south/east/west)")
+            print("2. Идти")
             print("3. Поговорить / Атаковать")
             print("4. Выход")
             choice = input("> ").strip().lower()
@@ -208,8 +226,7 @@ class Game:
             if choice == "1":
                 self.look_around()
             elif choice == "2":
-                direction = input("Куда идти? (north/south/east/west): ").strip().lower()
-                self.move(direction)
+                self.move()
             elif choice == "3":
                 self.talk_or_fight()
             elif choice == "4":
