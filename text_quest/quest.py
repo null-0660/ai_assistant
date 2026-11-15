@@ -1,4 +1,4 @@
-# Текстовый квест — v3: NPC, торговец, бой
+# Текстовый квест — v4: квест, амулет, финал
 
 import random
 
@@ -10,6 +10,7 @@ class Hero:
         self.max_hp = 100
         self.gold = 20
         self.inventory = []
+        self.has_amulet = False
 
     def show_stats(self):
         print(f"\n--- {self.name} ---")
@@ -19,6 +20,8 @@ class Hero:
             print(f"Инвентарь: {', '.join(self.inventory)}")
         else:
             print("Инвентарь: пусто")
+        if self.has_amulet:
+            print("🔮 Амулет: ЕСТЬ")
         print("-------------------")
 
     def take_damage(self, dmg):
@@ -101,10 +104,11 @@ class Game:
         self.running = True
         self.location = "forest"
         self.npcs = {
-            "forest": [NPC("Лесник", "Будь осторожен в пещере, путник.")],
-            "cave": [NPC("Гоблин", "Гр-р-р! Убирайся!", is_enemy=True, hp=30, dmg=8)],
-            "village": [NPC("Торговец", "Зелья! Зелья! Всего 10 золота!")],
+            "forest": [NPC("Лесник", "Говорят, в пещере гоблин охраняет древний амулет. Принеси его в деревню — старейшина щедро наградит.")],
+            "cave": [NPC("Гоблин", "Гр-р-р! Не отдам амулет!", is_enemy=True, hp=35, dmg=8)],
+            "village": [NPC("Старейшина", "Найди амулет в пещере, и я награжу тебя.")],
         }
+        self.quest_complete = False
 
     def print_location(self):
         loc = self.LOCATIONS[self.location]
@@ -149,8 +153,13 @@ class Game:
             self.combat(npc)
         else:
             print(f"\n{npc.name} говорит: «{npc.dialogue}»")
-            if npc.name == "Торговец":
-                self.trade()
+            if npc.name == "Старейшина" and self.hero.has_amulet:
+                print("🧓 Старейшина: «Ты нашёл амулет! Спасибо тебе, путник!»")
+                print("🏆 КВЕСТ ЗАВЕРШЁН! Ты победил!")
+                self.quest_complete = True
+                self.running = False
+            elif npc.name == "Старейшина":
+                print("🧓 Старейшина: «Сначала найди амулет в пещере.»")
 
     def combat(self, npc):
         while npc.is_alive() and self.hero.is_alive():
@@ -174,25 +183,16 @@ class Game:
             print(f"\n🏆 Ты победил {npc.name}!")
             self.hero.add_gold(15)
             self.npcs[self.location].remove(npc)
+            if npc.name == "Гоблин":
+                print("🔮 Из гоблина выпал древний амулет!")
+                self.hero.has_amulet = True
+                self.hero.add_item("Амулет")
         elif not self.hero.is_alive():
             print("💀 Ты пал в бою.")
 
-    def trade(self):
-        print("\n🛒 Торговец предлагает:")
-        print("1. Купить зелье (10 золота, +30 HP)")
-        print("2. Уйти")
-        choice = input("> ").strip()
-
-        if choice == "1":
-            if self.hero.spend_gold(10):
-                self.hero.heal(30)
-                self.hero.add_item("Зелье")
-            else:
-                print("Не хватает золота!")
-
     def play(self):
         print("🌲 Добро пожаловать в Тёмный Лес!")
-        print("Ты — Странник. Впереди тебя ждут испытания.")
+        print("Ты — Странник. Твоя цель: найти амулет в пещере и принести его старейшине.")
 
         while self.running and self.hero.is_alive():
             self.hero.show_stats()
@@ -218,7 +218,9 @@ class Game:
             else:
                 print("Неизвестная команда.")
 
-        if not self.hero.is_alive():
+        if self.quest_complete:
+            print("\n🏆 ПОБЕДА! Ты завершил квест.")
+        elif not self.hero.is_alive():
             print("💀 Game Over.")
 
 
