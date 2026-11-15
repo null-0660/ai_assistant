@@ -1,6 +1,8 @@
-# Текстовый квест — v5: русский интерфейс, удобное управление
+# Текстовый квест — v6: сохранение и загрузка
 
 import random
+import json
+import os
 
 
 class Hero:
@@ -112,6 +114,64 @@ class Game:
         }
         self.quest_complete = False
 
+    def save_game(self):
+        """Сохраняет состояние игры в JSON."""
+        data = {
+            "hero": {
+                "name": self.hero.name,
+                "hp": self.hero.hp,
+                "max_hp": self.hero.max_hp,
+                "gold": self.hero.gold,
+                "inventory": self.hero.inventory,
+                "has_amulet": self.hero.has_amulet,
+            },
+            "location": self.location,
+            "quest_complete": self.quest_complete,
+            "npcs": {loc: [{"name": n.name, "hp": n.hp} for n in npc_list] for loc, npc_list in self.npcs.items() if npc_list},
+        }
+        with open("save.json", "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        print("💾 Игра сохранена!")
+
+    def load_game(self):
+        """Загружает состояние из JSON."""
+        if not os.path.exists("save.json"):
+            print("❌ Файл сохранения не найден.")
+            return False
+        try:
+            with open("save.json", "r", encoding="utf-8") as f:
+                data = json.load(f)
+
+            self.hero.name = data["hero"]["name"]
+            self.hero.hp = data["hero"]["hp"]
+            self.hero.max_hp = data["hero"]["max_hp"]
+            self.hero.gold = data["hero"]["gold"]
+            self.hero.inventory = data["hero"]["inventory"]
+            self.hero.has_amulet = data["hero"]["has_amulet"]
+            self.location = data["location"]
+            self.quest_complete = data["quest_complete"]
+
+            # Обновляем NPC
+            self.npcs = {
+                "forest": [NPC("Лесник", "Говорят, в пещере гоблин охраняет древний амулет.")],
+                "cave": [NPC("Гоблин", "Гр-р-р!", is_enemy=True, hp=35, dmg=8)],
+                "village": [NPC("Старейшина", "Найди амулет.")],
+            }
+            for loc, npc_list in data.get("npcs", {}).items():
+                for saved_npc in npc_list:
+                    for npc in self.npcs.get(loc, []):
+                        if npc.name == saved_npc["name"]:
+                            npc.hp = saved_npc["hp"]
+            # Удаляем мёртвых
+            for loc in self.npcs:
+                self.npcs[loc] = [n for n in self.npcs[loc] if n.hp > 0]
+
+            print("📂 Игра загружена!")
+            return True
+        except Exception as e:
+            print(f"❌ Ошибка загрузки: {e}")
+            return False
+
     def print_location(self):
         loc = self.LOCATIONS[self.location]
         print(f"\n╔{'═' * 40}╗")
@@ -211,6 +271,7 @@ class Game:
     def play(self):
         print("🌲 Добро пожаловать в Тёмный Лес!")
         print("Ты — Странник. Твоя цель: найти амулет в пещере и принести его старейшине.")
+        print("S. Сохранить  |  L. Загрузить")
 
         while self.running and self.hero.is_alive():
             self.hero.show_stats()
@@ -221,6 +282,8 @@ class Game:
             print("2. Идти")
             print("3. Поговорить / Атаковать")
             print("4. Выход")
+            print("S. Сохранить")
+            print("L. Загрузить")
             choice = input("> ").strip().lower()
 
             if choice == "1":
@@ -232,6 +295,11 @@ class Game:
             elif choice == "4":
                 print("Конец игры.")
                 self.running = False
+            elif choice == "s":
+                self.save_game()
+            elif choice == "l":
+                if self.load_game():
+                    continue
             else:
                 print("Неизвестная команда.")
 
