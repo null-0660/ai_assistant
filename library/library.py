@@ -1,4 +1,9 @@
-# Библиотека — v3: статус, удаление, рейтинг
+# Библиотека — v4: сохранение в JSON
+
+import json
+import os
+
+DATA_FILE = "library.json"
 
 
 class Book:
@@ -20,10 +25,32 @@ class Book:
             "is_read": self.is_read
         }
 
+    @staticmethod
+    def from_dict(data):
+        return Book(data["title"], data["author"], data["year"], data.get("is_read", False))
+
 
 class Library:
     def __init__(self):
         self.books = []
+        self.load()
+
+    def save(self):
+        try:
+            with open(DATA_FILE, "w", encoding="utf-8") as f:
+                json.dump([b.to_dict() for b in self.books], f, ensure_ascii=False, indent=2)
+        except OSError:
+            print("❌ Ошибка сохранения.")
+
+    def load(self):
+        if not os.path.exists(DATA_FILE):
+            return
+        try:
+            with open(DATA_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                self.books = [Book.from_dict(b) for b in data]
+        except (json.JSONDecodeError, OSError):
+            print("⚠ Ошибка загрузки, начинаем с пустой библиотеки.")
 
     def add_book(self):
         print("\n➕ Добавление книги")
@@ -39,6 +66,7 @@ class Library:
             return
 
         self.books.append(Book(title, author, year))
+        self.save()
         print(f"✅ Книга «{title}» добавлена!")
 
     def show_all(self):
@@ -76,6 +104,7 @@ class Library:
             idx = int(input("\nНомер книги: ").strip()) - 1
             if 0 <= idx < len(self.books):
                 self.books[idx].is_read = not self.books[idx].is_read
+                self.save()
                 status = "прочитана" if self.books[idx].is_read else "не прочитана"
                 print(f"✅ Книга «{self.books[idx].title}» отмечена как {status}.")
             else:
@@ -92,6 +121,7 @@ class Library:
             idx = int(input("\nНомер книги для удаления: ").strip()) - 1
             if 0 <= idx < len(self.books):
                 removed = self.books.pop(idx)
+                self.save()
                 print(f"🗑 Книга «{removed.title}» удалена.")
             else:
                 print("❌ Неверный номер.")
@@ -102,13 +132,11 @@ class Library:
         if not self.books:
             print("📭 Библиотека пуста.")
             return
-
         read = sum(1 for b in self.books if b.is_read)
         years = [b.year for b in self.books]
         avg_year = sum(years) / len(years)
         oldest = min(self.books, key=lambda b: b.year)
         newest = max(self.books, key=lambda b: b.year)
-
         print("\n📊 Статистика:")
         print(f"  Всего книг:     {len(self.books)}")
         print(f"  Прочитано:      {read}")
@@ -134,6 +162,7 @@ def show_menu():
 
 def main():
     lib = Library()
+    print(f"📂 Загружено книг: {len(lib.books)}")
 
     while True:
         show_menu()
@@ -152,6 +181,7 @@ def main():
         elif choice == "6":
             lib.stats()
         elif choice == "7":
+            lib.save()
             print("👋 До свидания!")
             break
         else:
