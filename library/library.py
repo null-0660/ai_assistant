@@ -1,4 +1,4 @@
-# Библиотека — v1: классы Book и Library
+# Библиотека — v2: меню и поиск
 
 
 class Book:
@@ -25,10 +25,23 @@ class Library:
     def __init__(self):
         self.books = []
 
-    def add_book(self, title, author, year):
+    def add_book(self):
+        print("\n➕ Добавление книги")
+        title = input("Название: ").strip()
+        author = input("Автор: ").strip()
+        try:
+            year = int(input("Год: ").strip())
+        except ValueError:
+            print("❌ Год должен быть числом.")
+            return
+
+        if not title or not author:
+            print("❌ Название и автор не могут быть пустыми.")
+            return
+
         book = Book(title, author, year)
         self.books.append(book)
-        print(f"📚 Книга «{title}» добавлена.")
+        print(f"✅ Книга «{title}» добавлена!")
 
     def show_all(self):
         if not self.books:
@@ -39,12 +52,58 @@ class Library:
             print(f"{i}. ", end="")
             book.show()
 
+    def search(self):
+        if not self.books:
+            print("📭 Библиотека пуста.")
+            return
+        query = input("🔍 Поиск (название или автор): ").strip().lower()
+        if not query:
+            return
+
+        found = []
+        for book in self.books:
+            if query in book.title.lower() or query in book.author.lower():
+                found.append(book)
+
+        if not found:
+            print(f"❌ Ничего не найдено по запросу «{query}».")
+            return
+
+        print(f"\n🔍 Найдено {len(found)}:")
+        for i, book in enumerate(found, 1):
+            print(f"{i}. ", end="")
+            book.show()
+
+
+def show_menu():
+    print("\n" + "=" * 40)
+    print("📚 БИБЛИОТЕКА")
+    print("=" * 40)
+    print("1. Показать все книги")
+    print("2. Добавить книгу")
+    print("3. Поиск")
+    print("4. Выход")
+    print("=" * 40)
+
 
 def main():
     lib = Library()
-    lib.add_book("Мастер и Маргарита", "Булгаков", 1967)
-    lib.add_book("1984", "Оруэлл", 1949)
-    lib.show_all()
+
+    while True:
+        show_menu()
+        choice = input("> ").strip()
+
+        if choice == "1":
+            lib.show_all()
+        elif choice == "2":
+            lib.add_book()
+        elif choice == "3":
+            lib.search()
+        elif choice == "4":
+            print("👋 До свидания!")
+            break
+        else:
+            print("❌ Неизвестная команда.")
 
 
 if __name__ == "__main__":
