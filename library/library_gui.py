@@ -1,4 +1,4 @@
-# Библиотека GUI — v3: Современный UI на CustomTkinter
+# Библиотека GUI — v4: Идеальный дизайн (CustomTkinter)
 
 import customtkinter as ctk
 from tkinter import messagebox, simpledialog
@@ -8,17 +8,22 @@ import tkinter as tk
 
 DATA_FILE = os.path.join(os.path.dirname(__file__), "library.json")
 
-# Настройка темы
-ctk.set_appearance_mode("dark")  # Темная тема
-ctk.set_default_color_theme("blue")  # Синий акцент
+# Настройки темы
+ctk.set_appearance_mode("dark")
+ctk.set_default_color_theme("blue")
 
 # Цвета
-COLOR_BG = "#1e1e2e"
-COLOR_FRAME = "#181825"
-COLOR_GREEN = "#a6e3a1"
-COLOR_RED = "#f38ba8"
-COLOR_YELLOW = "#f9e2af"
-COLOR_TEXT = "#cdd6f4"
+BG_MAIN = "#181825"      # Темный фон
+BG_PANEL = "#1e1e2e"     # Панели
+BG_ROW = "#313244"       # Строки таблицы
+BG_HOVER = "#45475a"     # Наведение на строку
+GREEN = "#a6e3a1"
+RED = "#f38ba8"
+YELLOW = "#f9e2af"
+BLUE = "#89b4fa"
+PURPLE = "#cba6f7"
+TEXT = "#cdd6f4"
+TEXT_DIM = "#7f849c"
 
 
 class Book:
@@ -44,15 +49,15 @@ class LibraryApp(ctk.CTk):
         super().__init__()
 
         self.title("📚 Моя Библиотека")
-        self.geometry("950x600")
-        self.minsize(800, 500)
-        
-        # Основной фон
-        self.configure(fg_color=COLOR_BG)
+        self.geometry("1000x650")
+        self.minsize(850, 500)
+        self.configure(fg_color=BG_MAIN)
 
         self.books = []
+        self.selected_index = None  # Индекс выбранной книги
+        self.row_frames = []        # Ссылки на фреймы строк для подсветки
+        
         self.load()
-
         self.create_widgets()
         self.refresh_list()
 
@@ -77,21 +82,19 @@ class LibraryApp(ctk.CTk):
         top_frame = ctk.CTkFrame(self, fg_color="transparent")
         top_frame.pack(fill="x", padx=20, pady=(20, 10))
 
-        # Заголовок
-        title_label = ctk.CTkLabel(top_frame, text="📚 Моя Библиотека", 
-                                   font=ctk.CTkFont(family="Segoe UI", size=24, weight="bold"),
-                                   text_color=COLOR_GREEN)
-        title_label.pack(side="left")
+        ctk.CTkLabel(top_frame, text="📚 Моя Библиотека", 
+                     font=ctk.CTkFont(family="Segoe UI", size=28, weight="bold"),
+                     text_color=GREEN).pack(side="left")
 
-        # Поиск на лету
+        # Поиск
         self.search_var = tk.StringVar()
         self.search_var.trace_add("write", lambda *args: self.filter_list())
         
         search_entry = ctk.CTkEntry(top_frame, textvariable=self.search_var, 
-                                    placeholder_text="🔍 Поиск по названию или автору...",
-                                    width=300, height=35,
-                                    font=ctk.CTkFont(family="Segoe UI", size=13),
-                                    fg_color=COLOR_FRAME, border_width=0)
+                                    placeholder_text="🔍 Поиск (название или автор)...",
+                                    width=300, height=40,
+                                    font=ctk.CTkFont(family="Segoe UI", size=14),
+                                    fg_color=BG_PANEL, border_width=0)
         search_entry.pack(side="right")
 
         # ===== Основной контент =====
@@ -99,89 +102,93 @@ class LibraryApp(ctk.CTk):
         main_frame.pack(fill="both", expand=True, padx=20, pady=10)
 
         # Левая панель — Таблица
-        table_frame = ctk.CTkFrame(main_frame, fg_color=COLOR_FRAME, corner_radius=10)
+        table_frame = ctk.CTkFrame(main_frame, fg_color=BG_PANEL, corner_radius=12)
         table_frame.pack(side="left", fill="both", expand=True)
 
-        columns = ("title", "author", "year", "read", "rating")
-        self.tree = ctk.CTkScrollableFrame(table_frame, fg_color="transparent")
-        self.tree.pack(fill="both", expand=True, padx=10, pady=10)
-
-        # Шапка таблицы
-        header_frame = ctk.CTkFrame(self.tree, fg_color=COLOR_BG, height=35)
-        header_frame.pack(fill="x", pady=(0, 10))
+        # Шапка таблицы (фиксированная)
+        header = ctk.CTkFrame(table_frame, fg_color=BG_MAIN, height=45, corner_radius=8)
+        header.pack(fill="x", padx=10, pady=(10, 5))
+        header.pack_propagate(False)
         
-        ctk.CTkLabel(header_frame, text="Название", width=200, anchor="w", font=ctk.CTkFont(weight="bold")).pack(side="left", padx=5)
-        ctk.CTkLabel(header_frame, text="Автор", width=150, anchor="w", font=ctk.CTkFont(weight="bold")).pack(side="left", padx=5)
-        ctk.CTkLabel(header_frame, text="Год", width=60, anchor="center", font=ctk.CTkFont(weight="bold")).pack(side="left", padx=5)
-        ctk.CTkLabel(header_frame, text="Статус", width=100, anchor="center", font=ctk.CTkFont(weight="bold")).pack(side="left", padx=5)
-        ctk.CTkLabel(header_frame, text="Оценка", width=80, anchor="center", font=ctk.CTkFont(weight="bold")).pack(side="left", padx=5)
+        ctk.CTkLabel(header, text="Название", width=220, anchor="w", font=ctk.CTkFont(size=13, weight="bold")).pack(side="left", padx=10)
+        ctk.CTkLabel(header, text="Автор", width=160, anchor="w", font=ctk.CTkFont(size=13, weight="bold")).pack(side="left", padx=5)
+        ctk.CTkLabel(header, text="Год", width=70, anchor="center", font=ctk.CTkFont(size=13, weight="bold")).pack(side="left", padx=5)
+        ctk.CTkLabel(header, text="Статус", width=110, anchor="center", font=ctk.CTkFont(size=13, weight="bold")).pack(side="left", padx=5)
+        ctk.CTkLabel(header, text="Оценка", width=90, anchor="center", font=ctk.CTkFont(size=13, weight="bold")).pack(side="left", padx=5)
 
-        self.rows_frame = ctk.CTkFrame(self.tree, fg_color="transparent")
-        self.rows_frame.pack(fill="both", expand=True)
+        # Прокручиваемый список
+        self.scroll_frame = ctk.CTkScrollableFrame(table_frame, fg_color="transparent")
+        self.scroll_frame.pack(fill="both", expand=True, padx=5, pady=5)
 
         # Правая панель — Кнопки
-        btn_frame = ctk.CTkFrame(main_frame, fg_color="transparent", width=200)
-        btn_frame.pack(side="right", fill="y", padx=(20, 0))
+        btn_frame = ctk.CTkFrame(main_frame, fg_color="transparent", width=220)
+        btn_frame.pack(side="right", fill="y", padx=(15, 0))
 
-        # Стили кнопок
-        btn_style = {
-            "font": ctk.CTkFont(family="Segoe UI", size=14, weight="bold"),
-            "height": 40,
-            "corner_radius": 10,
-            "anchor": "w",
-            "text_color": "#11111b"
-        }
+        def make_btn(text, color, hover, cmd):
+            return ctk.CTkButton(btn_frame, text=text, fg_color=color, hover_color=hover,
+                                 text_color="#11111b", font=ctk.CTkFont(size=14, weight="bold"),
+                                 height=45, corner_radius=10, anchor="w", command=cmd)
 
-        ctk.CTkButton(btn_frame, text="➕ Добавить книгу", fg_color=COLOR_GREEN, 
-                      hover_color="#94d689", command=self.add_book, **btn_style).pack(pady=8, fill="x")
-        
-        ctk.CTkButton(btn_frame, text="✅ Отметить прочитанной", fg_color=COLOR_YELLOW, 
-                      hover_color="#e6c88c", command=self.toggle_read, **btn_style).pack(pady=8, fill="x")
-        
-        ctk.CTkButton(btn_frame, text="⭐ Поставить оценку", fg_color=COLOR_YELLOW, 
-                      hover_color="#e6c88c", command=self.set_rating, **btn_style).pack(pady=8, fill="x")
-        
-        ctk.CTkButton(btn_frame, text="📊 Статистика", fg_color="#89b4fa", 
-                      hover_color="#6f99d9", command=self.show_stats, **btn_style).pack(pady=8, fill="x")
-        
-        ctk.CTkButton(btn_frame, text="📤 Экспорт в TXT", fg_color="#cba6f7", 
-                      hover_color="#b48de6", command=self.export_menu, **btn_style).pack(pady=8, fill="x")
-        
-        ctk.CTkButton(btn_frame, text="🗑 Удалить книгу", fg_color=COLOR_RED, 
-                      hover_color="#d96b8b", command=self.delete_book, **btn_style).pack(pady=8, fill="x")
+        make_btn("➕ Добавить книгу", GREEN, "#94d689", self.add_book).pack(pady=6, fill="x")
+        make_btn("✅ Прочитано", YELLOW, "#e6c88c", self.toggle_read).pack(pady=6, fill="x")
+        make_btn("⭐ Оценить", YELLOW, "#e6c88c", self.set_rating).pack(pady=6, fill="x")
+        make_btn("📊 Статистика", BLUE, "#6f99d9", self.show_stats).pack(pady=6, fill="x")
+        make_btn("📤 Экспорт", PURPLE, "#b48de6", self.export_menu).pack(pady=6, fill="x")
+        make_btn("🗑 Удалить", RED, "#d96b8b", self.delete_book).pack(pady=(25, 6), fill="x")
 
-        # ===== Статус-бар =====
-        self.status = ctk.CTkLabel(self, text="", font=ctk.CTkFont(family="Segoe UI", size=12),
-                                   text_color="#7f849c", anchor="w")
+        # Статус-бар
+        self.status = ctk.CTkLabel(self, text="", font=ctk.CTkFont(size=13),
+                                   text_color=TEXT_DIM, anchor="w")
         self.status.pack(fill="x", padx=25, pady=(0, 15))
 
     def refresh_list(self, books=None):
-        # Очищаем старые строки
-        for widget in self.rows_frame.winfo_children():
-            widget.destroy()
-
+        # Очищаем список
+        for w in self.scroll_frame.winfo_children():
+            w.destroy()
+        self.row_frames.clear()
+        
         display_books = books if books is not None else self.books
         
-        # Создаем строки
-        for b in display_books:
-            row = ctk.CTkFrame(self.rows_frame, fg_color=COLOR_BG, height=45, corner_radius=5)
-            row.pack(fill="x", pady=2)
+        for i, b in enumerate(display_books):
+            # Фрейм строки
+            row = ctk.CTkFrame(self.scroll_frame, fg_color=BG_ROW, height=45, corner_radius=6, cursor="hand2")
+            row.pack(fill="x", pady=3, padx=5)
             row.pack_propagate(False)
-
-            ctk.CTkLabel(row, text=f"«{b.title}»", width=200, anchor="w", font=ctk.CTkFont(weight="bold")).pack(side="left", padx=5)
-            ctk.CTkLabel(row, text=b.author, width=150, anchor="w").pack(side="left", padx=5)
-            ctk.CTkLabel(row, text=str(b.year), width=60, anchor="center").pack(side="left", padx=5)
+            
+            # Сохраняем связь индекса
+            row.book_index = self.books.index(b)
+            self.row_frames.append(row)
+            
+            # Привязка клика ко всей строке
+            row.bind("<Button-1>", lambda e, r=row: self.select_row(r))
+            
+            # Текст
+            ctk.CTkLabel(row, text=f"«{b.title}»", width=220, anchor="w", font=ctk.CTkFont(size=13, weight="bold"), fg_color="transparent").pack(side="left", padx=10)
+            ctk.CTkLabel(row, text=b.author, width=160, anchor="w", fg_color="transparent").pack(side="left", padx=5)
+            ctk.CTkLabel(row, text=str(b.year), width=70, anchor="center", fg_color="transparent").pack(side="left", padx=5)
             
             read_text = "✅ Прочитана" if b.is_read else "📖 В планах"
-            read_color = COLOR_GREEN if b.is_read else COLOR_YELLOW
-            ctk.CTkLabel(row, text=read_text, width=100, anchor="center", text_color=read_color).pack(side="left", padx=5)
+            read_color = GREEN if b.is_read else YELLOW
+            ctk.CTkLabel(row, text=read_text, width=110, anchor="center", text_color=read_color, fg_color="transparent").pack(side="left", padx=5)
             
             stars = "⭐" * b.rating if b.rating > 0 else "—"
-            ctk.CTkLabel(row, text=stars, width=80, anchor="center").pack(side="left", padx=5)
+            ctk.CTkLabel(row, text=stars, width=90, anchor="center", fg_color="transparent").pack(side="left", padx=5)
+
+            # Hover-эффект (при наведении мыши)
+            row.bind("<Enter>", lambda e, r=row: r.configure(fg_color=BG_HOVER) if self.selected_index != r.book_index else None)
+            row.bind("<Leave>", lambda e, r=row: r.configure(fg_color=BG_ROW) if self.selected_index != r.book_index else None)
 
         total = len(self.books)
         read = sum(1 for b in self.books if b.is_read)
         self.status.configure(text=f"Всего книг: {total}  |  Прочитано: {read}  |  В планах: {total - read}")
+
+    def select_row(self, row):
+        # Снимаем выделение со всех
+        for r in self.row_frames:
+            r.configure(fg_color=BG_ROW)
+        # Подсвечиваем выбранную
+        row.configure(fg_color=BLUE)
+        self.selected_index = row.book_index
 
     def filter_list(self):
         query = self.search_var.get().lower()
@@ -192,42 +199,31 @@ class LibraryApp(ctk.CTk):
             self.refresh_list(filtered)
 
     def get_selected(self):
-        # В CustomTkinter нет стандартного выделения, поэтому используем ввод номера
-        # Или можно искать по названию. Упростим: пусть выбирает через диалоговое окно.
-        # Но для красоты сделаем кастомный диалог выбора.
-        if not self.books:
-            messagebox.showinfo("Инфо", "Библиотека пуста.")
+        if self.selected_index is None:
+            messagebox.showwarning("Внимание", "Сначала выбери книгу из списка!")
             return None
-        
-        # Просто спросим номер книги (от 1 до N)
-        try:
-            num = simpledialog.askinteger("Выбор книги", f"Введите номер книги (1-{len(self.books)}):", 
-                                          minvalue=1, maxvalue=len(self.books), parent=self)
-            if num is None: return None
-            return num - 1
-        except:
-            return None
+        return self.selected_index
 
     def add_book(self):
         dialog = ctk.CTkToplevel(self)
         dialog.title("Добавить книгу")
-        dialog.geometry("350x300")
-        dialog.configure(fg_color=COLOR_BG)
+        dialog.geometry("400x350")
+        dialog.configure(fg_color=BG_PANEL)
         dialog.attributes("-topmost", True)
         
-        ctk.CTkLabel(dialog, text="Новая книга", font=ctk.CTkFont(size=18, weight="bold"), text_color=COLOR_GREEN).pack(pady=15)
+        ctk.CTkLabel(dialog, text="➕ Новая книга", font=ctk.CTkFont(size=22, weight="bold"), text_color=GREEN).pack(pady=20)
         
-        ctk.CTkLabel(dialog, text="Название:", anchor="w").pack(fill="x", padx=20)
-        title_entry = ctk.CTkEntry(dialog, width=300, fg_color=COLOR_FRAME)
-        title_entry.pack(pady=(0, 10), padx=20)
+        ctk.CTkLabel(dialog, text="Название:", anchor="w", font=ctk.CTkFont(size=14)).pack(fill="x", padx=30)
+        title_entry = ctk.CTkEntry(dialog, width=340, height=35, font=ctk.CTkFont(size=14))
+        title_entry.pack(pady=(0, 10), padx=30)
         
-        ctk.CTkLabel(dialog, text="Автор:", anchor="w").pack(fill="x", padx=20)
-        author_entry = ctk.CTkEntry(dialog, width=300, fg_color=COLOR_FRAME)
-        author_entry.pack(pady=(0, 10), padx=20)
+        ctk.CTkLabel(dialog, text="Автор:", anchor="w", font=ctk.CTkFont(size=14)).pack(fill="x", padx=30)
+        author_entry = ctk.CTkEntry(dialog, width=340, height=35, font=ctk.CTkFont(size=14))
+        author_entry.pack(pady=(0, 10), padx=30)
         
-        ctk.CTkLabel(dialog, text="Год:", anchor="w").pack(fill="x", padx=20)
-        year_entry = ctk.CTkEntry(dialog, width=300, fg_color=COLOR_FRAME)
-        year_entry.pack(pady=(0, 15), padx=20)
+        ctk.CTkLabel(dialog, text="Год:", anchor="w", font=ctk.CTkFont(size=14)).pack(fill="x", padx=30)
+        year_entry = ctk.CTkEntry(dialog, width=340, height=35, font=ctk.CTkFont(size=14))
+        year_entry.pack(pady=(0, 15), padx=30)
         
         def save_book():
             title = title_entry.get().strip()
@@ -248,7 +244,8 @@ class LibraryApp(ctk.CTk):
             self.refresh_list()
             dialog.destroy()
             
-        ctk.CTkButton(dialog, text="Сохранить", fg_color=COLOR_GREEN, text_color="#11111b", command=save_book).pack(pady=10)
+        ctk.CTkButton(dialog, text="Сохранить", fg_color=GREEN, text_color="#11111b", 
+                      height=45, font=ctk.CTkFont(size=15, weight="bold"), command=save_book).pack(pady=10)
 
     def toggle_read(self):
         idx = self.get_selected()
@@ -271,6 +268,7 @@ class LibraryApp(ctk.CTk):
         if idx is None: return
         if messagebox.askyesno("Удалить", f"Удалить «{self.books[idx].title}»?"):
             self.books.pop(idx)
+            self.selected_index = None
             self.save()
             self.refresh_list()
 
@@ -284,7 +282,8 @@ class LibraryApp(ctk.CTk):
         rated = [b for b in self.books if b.rating > 0]
         avg_r = sum(b.rating for b in rated) / len(rated) if rated else 0
         
-        msg = (f"Всего книг: {len(self.books)}\n"
+        msg = (f"📊 СТАТИСТИКА\n\n"
+               f"Всего книг: {len(self.books)}\n"
                f"Прочитано: {read}\n"
                f"Не прочитано: {len(self.books) - read}\n"
                f"Средний год: {avg_year:.0f}\n"
