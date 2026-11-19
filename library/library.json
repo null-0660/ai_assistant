@@ -1,0 +1,16 @@
+[
+  {
+    "title": "1",
+    "author": "1",
+    "year": 1,
+    "is_read": true,
+    "rating": 0
+  },
+  {
+    "title": "2",
+    "author": "2",
+    "year": 2,
+    "is_read": false,
+    "rating": 0
+  }
+]

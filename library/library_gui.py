@@ -1,24 +1,24 @@
-# Библиотека GUI — v2: Современный дизайн (Catppuccin)
+# Библиотека GUI — v3: Современный UI на CustomTkinter
 
-import tkinter as tk
-from tkinter import ttk, messagebox, simpledialog
+import customtkinter as ctk
+from tkinter import messagebox, simpledialog
 import json
 import os
+import tkinter as tk
 
 DATA_FILE = os.path.join(os.path.dirname(__file__), "library.json")
 
-# ===== Палитра Catppuccin Mocha =====
-BG = "#1e1e2e"          # Фон окна
-BG_DARKER = "#181825"   # Фон полей
-BG_LIGHT = "#313244"    # Фон элементов
-FG = "#cdd6f4"          # Основной текст
-FG_DIM = "#7f849c"      # Тусклый текст
-GREEN = "#a6e3a1"       # Успех/добавить
-RED = "#f38ba8"         # Удаление
-YELLOW = "#f9e2af"      # Оценка/прочитано
-BLUE = "#89b4fa"        # Поиск/инфо
-PURPLE = "#cba6f7"      # Экспорт
-CYAN = "#89dceb"        # Акценты
+# Настройка темы
+ctk.set_appearance_mode("dark")  # Темная тема
+ctk.set_default_color_theme("blue")  # Синий акцент
+
+# Цвета
+COLOR_BG = "#1e1e2e"
+COLOR_FRAME = "#181825"
+COLOR_GREEN = "#a6e3a1"
+COLOR_RED = "#f38ba8"
+COLOR_YELLOW = "#f9e2af"
+COLOR_TEXT = "#cdd6f4"
 
 
 class Book:
@@ -39,45 +39,16 @@ class Book:
                     data.get("is_read", False), data.get("rating", 0))
 
 
-class RoundedButton(tk.Canvas):
-    """Кастомная кнопка с закруглёнными углами и hover-эффектом."""
-    def __init__(self, parent, text, color, hover_color, command, width=180, height=40):
-        super().__init__(parent, width=width, height=height, bg=BG, highlightthickness=0, bd=0)
-        self.color = color
-        self.hover_color = hover_color
-        self.command = command
-        self.text = text
-        self.w = width
-        self.h = height
+class LibraryApp(ctk.CTk):
+    def __init__(self):
+        super().__init__()
+
+        self.title("📚 Моя Библиотека")
+        self.geometry("950x600")
+        self.minsize(800, 500)
         
-        self.rect = self.create_round_rect(2, 2, width-2, height-2, 8, fill=color, outline="")
-        self.text_id = self.create_text(width/2, height/2, text=text, fill="#11111b", font=("Segoe UI", 10, "bold"))
-        
-        self.bind("<Button-1>", self.on_click)
-        self.bind("<Enter>", self.on_enter)
-        self.bind("<Leave>", self.on_leave)
-
-    def create_round_rect(self, x1, y1, x2, y2, r, **kwargs):
-        points = [x1+r, y1, x2-r, y1, x2, y1, x2, y1+r, x2, y2-r, x2, y2, x2-r, y2, x1+r, y2, x1, y2, x1, y2-r, x1, y1+r, x1, y1]
-        return self.create_polygon(points, **kwargs, smooth=True)
-
-    def on_click(self, event):
-        self.command()
-
-    def on_enter(self, event):
-        self.itemconfig(self.rect, fill=self.hover_color)
-
-    def on_leave(self, event):
-        self.itemconfig(self.rect, fill=self.color)
-
-
-class LibraryApp:
-    def __init__(self, root):
-        self.root = root
-        self.root.title("📚 Библиотека")
-        self.root.geometry("850x600")
-        self.root.configure(bg=BG)
-        self.root.minsize(800, 500)
+        # Основной фон
+        self.configure(fg_color=COLOR_BG)
 
         self.books = []
         self.load()
@@ -103,97 +74,114 @@ class LibraryApp:
 
     def create_widgets(self):
         # ===== Верхняя панель =====
-        top_bar = tk.Frame(self.root, bg=BG)
-        top_bar.pack(fill="x", padx=20, pady=(20, 10))
+        top_frame = ctk.CTkFrame(self, fg_color="transparent")
+        top_frame.pack(fill="x", padx=20, pady=(20, 10))
 
         # Заголовок
-        tk.Label(top_bar, text="📚 Моя Библиотека", font=("Segoe UI", 20, "bold"),
-                 bg=BG, fg=GREEN).pack(side="left")
+        title_label = ctk.CTkLabel(top_frame, text="📚 Моя Библиотека", 
+                                   font=ctk.CTkFont(family="Segoe UI", size=24, weight="bold"),
+                                   text_color=COLOR_GREEN)
+        title_label.pack(side="left")
 
-        # Поиск
-        search_frame = tk.Frame(top_bar, bg=BG_DARKER, padx=10, pady=5)
-        search_frame.pack(side="right")
-        
-        tk.Label(search_frame, text="🔍", font=("Segoe UI", 12), bg=BG_DARKER, fg=FG_DIM).pack(side="left", padx=(0, 5))
+        # Поиск на лету
         self.search_var = tk.StringVar()
         self.search_var.trace_add("write", lambda *args: self.filter_list())
-        search_entry = tk.Entry(search_frame, textvariable=self.search_var, font=("Segoe UI", 11),
-                                bg=BG_DARKER, fg=FG, insertbackground=FG, relief="flat", width=20)
-        search_entry.pack(side="left")
+        
+        search_entry = ctk.CTkEntry(top_frame, textvariable=self.search_var, 
+                                    placeholder_text="🔍 Поиск по названию или автору...",
+                                    width=300, height=35,
+                                    font=ctk.CTkFont(family="Segoe UI", size=13),
+                                    fg_color=COLOR_FRAME, border_width=0)
+        search_entry.pack(side="right")
 
         # ===== Основной контент =====
-        main_frame = tk.Frame(self.root, bg=BG)
+        main_frame = ctk.CTkFrame(self, fg_color="transparent")
         main_frame.pack(fill="both", expand=True, padx=20, pady=10)
 
-        # Таблица
+        # Левая панель — Таблица
+        table_frame = ctk.CTkFrame(main_frame, fg_color=COLOR_FRAME, corner_radius=10)
+        table_frame.pack(side="left", fill="both", expand=True)
+
         columns = ("title", "author", "year", "read", "rating")
-        self.tree = ttk.Treeview(main_frame, columns=columns, show="headings")
-        self.tree.heading("title", text="Название")
-        self.tree.heading("author", text="Автор")
-        self.tree.heading("year", text="Год")
-        self.tree.heading("read", text="Статус")
-        self.tree.heading("rating", text="Оценка")
+        self.tree = ctk.CTkScrollableFrame(table_frame, fg_color="transparent")
+        self.tree.pack(fill="both", expand=True, padx=10, pady=10)
 
-        self.tree.column("title", width=250)
-        self.tree.column("author", width=180)
-        self.tree.column("year", width=70, anchor="center")
-        self.tree.column("read", width=100, anchor="center")
-        self.tree.column("rating", width=90, anchor="center")
+        # Шапка таблицы
+        header_frame = ctk.CTkFrame(self.tree, fg_color=COLOR_BG, height=35)
+        header_frame.pack(fill="x", pady=(0, 10))
+        
+        ctk.CTkLabel(header_frame, text="Название", width=200, anchor="w", font=ctk.CTkFont(weight="bold")).pack(side="left", padx=5)
+        ctk.CTkLabel(header_frame, text="Автор", width=150, anchor="w", font=ctk.CTkFont(weight="bold")).pack(side="left", padx=5)
+        ctk.CTkLabel(header_frame, text="Год", width=60, anchor="center", font=ctk.CTkFont(weight="bold")).pack(side="left", padx=5)
+        ctk.CTkLabel(header_frame, text="Статус", width=100, anchor="center", font=ctk.CTkFont(weight="bold")).pack(side="left", padx=5)
+        ctk.CTkLabel(header_frame, text="Оценка", width=80, anchor="center", font=ctk.CTkFont(weight="bold")).pack(side="left", padx=5)
 
-        # Стили таблицы
-        style = ttk.Style()
-        style.theme_use("clam")
-        style.configure("Treeview",
-                        background=BG_DARKER,
-                        foreground=FG,
-                        fieldbackground=BG_DARKER,
-                        font=("Segoe UI", 11),
-                        rowheight=35,
-                        borderwidth=0)
-        style.configure("Treeview.Heading",
-                        background=BG_LIGHT,
-                        foreground=FG,
-                        font=("Segoe UI", 11, "bold"),
-                        borderwidth=0)
-        style.map("Treeview.Heading", background=[("active", BG_LIGHT)])
-        style.map("Treeview", background=[("selected", BLUE)], foreground=[("selected", BG_DARKER)])
+        self.rows_frame = ctk.CTkFrame(self.tree, fg_color="transparent")
+        self.rows_frame.pack(fill="both", expand=True)
 
-        scrollbar = ttk.Scrollbar(main_frame, orient="vertical", command=self.tree.yview)
-        self.tree.configure(yscrollcommand=scrollbar.set)
+        # Правая панель — Кнопки
+        btn_frame = ctk.CTkFrame(main_frame, fg_color="transparent", width=200)
+        btn_frame.pack(side="right", fill="y", padx=(20, 0))
 
-        self.tree.pack(side="left", fill="both", expand=True)
-        scrollbar.pack(side="left", fill="y")
+        # Стили кнопок
+        btn_style = {
+            "font": ctk.CTkFont(family="Segoe UI", size=14, weight="bold"),
+            "height": 40,
+            "corner_radius": 10,
+            "anchor": "w",
+            "text_color": "#11111b"
+        }
 
-        # Кнопки справа
-        btn_frame = tk.Frame(main_frame, bg=BG)
-        btn_frame.pack(side="right", fill="y", padx=(15, 0))
-
-        RoundedButton(btn_frame, "➕ Добавить", GREEN, "#94d689", self.add_book).pack(pady=5)
-        RoundedButton(btn_frame, "✅ Прочитано", YELLOW, "#e6c88c", self.toggle_read).pack(pady=5)
-        RoundedButton(btn_frame, "⭐ Оценить", YELLOW, "#e6c88c", self.set_rating).pack(pady=5)
-        RoundedButton(btn_frame, "📊 Статистика", BLUE, "#6f99d9", self.show_stats).pack(pady=5)
-        RoundedButton(btn_frame, "🗑 Удалить", RED, "#d96b8b", self.delete_book).pack(pady=5)
-        RoundedButton(btn_frame, "📤 Экспорт", PURPLE, "#b48de6", self.export_menu).pack(pady=5)
+        ctk.CTkButton(btn_frame, text="➕ Добавить книгу", fg_color=COLOR_GREEN, 
+                      hover_color="#94d689", command=self.add_book, **btn_style).pack(pady=8, fill="x")
+        
+        ctk.CTkButton(btn_frame, text="✅ Отметить прочитанной", fg_color=COLOR_YELLOW, 
+                      hover_color="#e6c88c", command=self.toggle_read, **btn_style).pack(pady=8, fill="x")
+        
+        ctk.CTkButton(btn_frame, text="⭐ Поставить оценку", fg_color=COLOR_YELLOW, 
+                      hover_color="#e6c88c", command=self.set_rating, **btn_style).pack(pady=8, fill="x")
+        
+        ctk.CTkButton(btn_frame, text="📊 Статистика", fg_color="#89b4fa", 
+                      hover_color="#6f99d9", command=self.show_stats, **btn_style).pack(pady=8, fill="x")
+        
+        ctk.CTkButton(btn_frame, text="📤 Экспорт в TXT", fg_color="#cba6f7", 
+                      hover_color="#b48de6", command=self.export_menu, **btn_style).pack(pady=8, fill="x")
+        
+        ctk.CTkButton(btn_frame, text="🗑 Удалить книгу", fg_color=COLOR_RED, 
+                      hover_color="#d96b8b", command=self.delete_book, **btn_style).pack(pady=8, fill="x")
 
         # ===== Статус-бар =====
-        self.status = tk.Label(self.root, text="", font=("Segoe UI", 10),
-                               bg=BG_DARKER, fg=FG_DIM, anchor="w", padx=20, pady=8)
-        self.status.pack(fill="x", side="bottom")
+        self.status = ctk.CTkLabel(self, text="", font=ctk.CTkFont(family="Segoe UI", size=12),
+                                   text_color="#7f849c", anchor="w")
+        self.status.pack(fill="x", padx=25, pady=(0, 15))
 
     def refresh_list(self, books=None):
-        for item in self.tree.get_children():
-            self.tree.delete(item)
+        # Очищаем старые строки
+        for widget in self.rows_frame.winfo_children():
+            widget.destroy()
 
         display_books = books if books is not None else self.books
         
+        # Создаем строки
         for b in display_books:
-            read_status = "✅ Прочитана" if b.is_read else "📖 В планах"
+            row = ctk.CTkFrame(self.rows_frame, fg_color=COLOR_BG, height=45, corner_radius=5)
+            row.pack(fill="x", pady=2)
+            row.pack_propagate(False)
+
+            ctk.CTkLabel(row, text=f"«{b.title}»", width=200, anchor="w", font=ctk.CTkFont(weight="bold")).pack(side="left", padx=5)
+            ctk.CTkLabel(row, text=b.author, width=150, anchor="w").pack(side="left", padx=5)
+            ctk.CTkLabel(row, text=str(b.year), width=60, anchor="center").pack(side="left", padx=5)
+            
+            read_text = "✅ Прочитана" if b.is_read else "📖 В планах"
+            read_color = COLOR_GREEN if b.is_read else COLOR_YELLOW
+            ctk.CTkLabel(row, text=read_text, width=100, anchor="center", text_color=read_color).pack(side="left", padx=5)
+            
             stars = "⭐" * b.rating if b.rating > 0 else "—"
-            self.tree.insert("", "end", values=(b.title, b.author, b.year, read_status, stars))
+            ctk.CTkLabel(row, text=stars, width=80, anchor="center").pack(side="left", padx=5)
 
         total = len(self.books)
         read = sum(1 for b in self.books if b.is_read)
-        self.status.config(text=f"Всего книг: {total}  |  Прочитано: {read}  |  В планах: {total - read}")
+        self.status.configure(text=f"Всего книг: {total}  |  Прочитано: {read}  |  В планах: {total - read}")
 
     def filter_list(self):
         query = self.search_var.get().lower()
@@ -204,33 +192,63 @@ class LibraryApp:
             self.refresh_list(filtered)
 
     def get_selected(self):
-        selected = self.tree.selection()
-        if not selected:
-            messagebox.showwarning("Внимание", "Выбери книгу из списка!")
+        # В CustomTkinter нет стандартного выделения, поэтому используем ввод номера
+        # Или можно искать по названию. Упростим: пусть выбирает через диалоговое окно.
+        # Но для красоты сделаем кастомный диалог выбора.
+        if not self.books:
+            messagebox.showinfo("Инфо", "Библиотека пуста.")
             return None
-        values = self.tree.item(selected[0], "values")
-        # Ищем по названию и автору (на случай если фильтр включён)
-        for i, b in enumerate(self.books):
-            if b.title == values[0] and b.author == values[1]:
-                return i
-        return None
+        
+        # Просто спросим номер книги (от 1 до N)
+        try:
+            num = simpledialog.askinteger("Выбор книги", f"Введите номер книги (1-{len(self.books)}):", 
+                                          minvalue=1, maxvalue=len(self.books), parent=self)
+            if num is None: return None
+            return num - 1
+        except:
+            return None
 
     def add_book(self):
-        title = simpledialog.askstring("Добавить книгу", "Название:", parent=self.root)
-        if not title: return
-        author = simpledialog.askstring("Добавить книгу", "Автор:", parent=self.root)
-        if not author: return
-        year_str = simpledialog.askstring("Добавить книгу", "Год:", parent=self.root)
-        if not year_str: return
-        try:
-            year = int(year_str)
-        except ValueError:
-            messagebox.showerror("Ошибка", "Год должен быть числом!")
-            return
-
-        self.books.append(Book(title, author, year))
-        self.save()
-        self.refresh_list()
+        dialog = ctk.CTkToplevel(self)
+        dialog.title("Добавить книгу")
+        dialog.geometry("350x300")
+        dialog.configure(fg_color=COLOR_BG)
+        dialog.attributes("-topmost", True)
+        
+        ctk.CTkLabel(dialog, text="Новая книга", font=ctk.CTkFont(size=18, weight="bold"), text_color=COLOR_GREEN).pack(pady=15)
+        
+        ctk.CTkLabel(dialog, text="Название:", anchor="w").pack(fill="x", padx=20)
+        title_entry = ctk.CTkEntry(dialog, width=300, fg_color=COLOR_FRAME)
+        title_entry.pack(pady=(0, 10), padx=20)
+        
+        ctk.CTkLabel(dialog, text="Автор:", anchor="w").pack(fill="x", padx=20)
+        author_entry = ctk.CTkEntry(dialog, width=300, fg_color=COLOR_FRAME)
+        author_entry.pack(pady=(0, 10), padx=20)
+        
+        ctk.CTkLabel(dialog, text="Год:", anchor="w").pack(fill="x", padx=20)
+        year_entry = ctk.CTkEntry(dialog, width=300, fg_color=COLOR_FRAME)
+        year_entry.pack(pady=(0, 15), padx=20)
+        
+        def save_book():
+            title = title_entry.get().strip()
+            author = author_entry.get().strip()
+            year_str = year_entry.get().strip()
+            
+            if not title or not author:
+                messagebox.showerror("Ошибка", "Заполните все поля!")
+                return
+            try:
+                year = int(year_str)
+            except ValueError:
+                messagebox.showerror("Ошибка", "Год должен быть числом!")
+                return
+                
+            self.books.append(Book(title, author, year))
+            self.save()
+            self.refresh_list()
+            dialog.destroy()
+            
+        ctk.CTkButton(dialog, text="Сохранить", fg_color=COLOR_GREEN, text_color="#11111b", command=save_book).pack(pady=10)
 
     def toggle_read(self):
         idx = self.get_selected()
@@ -242,7 +260,7 @@ class LibraryApp:
     def set_rating(self):
         idx = self.get_selected()
         if idx is None: return
-        rating = simpledialog.askinteger("Оценка", "Оценка (1-5):", minvalue=1, maxvalue=5, parent=self.root)
+        rating = simpledialog.askinteger("Оценка", "Оценка (1-5):", minvalue=1, maxvalue=5, parent=self)
         if rating:
             self.books[idx].rating = rating
             self.save()
@@ -287,6 +305,5 @@ class LibraryApp:
 
 
 if __name__ == "__main__":
-    root = tk.Tk()
-    app = LibraryApp(root)
-    root.mainloop()
+    app = LibraryApp()
+    app.mainloop()
