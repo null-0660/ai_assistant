@@ -1,11 +1,27 @@
-# Библиотека — v4: сохранение в JSON
+# Библиотека — v5: Красивый CLI-интерфейс с цветами и рамками
 
 import json
 import os
+import sys
 
-DATA_FILE = "library.json"
+DATA_FILE = os.path.join(os.path.dirname(__file__), "library.json")
 
+# ===== Цвета =====
+RESET = '\033[0m'
+BOLD = '\033[1m'
+DIM = '\033[2m'
+RED = '\033[91m'
+GREEN = '\033[92m'
+YELLOW = '\033[93m'
+BLUE = '\033[94m'
+MAGENTA = '\033[95m'
+CYAN = '\033[96m'
+WHITE = '\033[97m'
 
+def clear():
+    os.system('cls' if os.name == 'nt' else 'clear')
+
+# ===== Классы =====
 class Book:
     def __init__(self, title, author, year, is_read=False):
         self.title = title
@@ -13,9 +29,13 @@ class Book:
         self.year = year
         self.is_read = is_read
 
-    def show(self):
-        status = "✅ прочитана" if self.is_read else "📖 не прочитана"
-        print(f"«{self.title}» — {self.author} ({self.year}) | {status}")
+    def show(self, index=None):
+        prefix = f"{CYAN}{index:2}.{RESET} " if index is not None else "  "
+        status = f"{GREEN}✅ прочитана{RESET}" if self.is_read else f"{YELLOW}📖 не прочитана{RESET}"
+        title_str = f"{BOLD}{WHITE}«{self.title}»{RESET}"
+        author_str = f"{DIM}{self.author}{RESET}"
+        year_str = f"{BLUE}({self.year}){RESET}"
+        print(f"{prefix}{title_str} — {author_str} {year_str} | {status}")
 
     def to_dict(self):
         return {
@@ -40,7 +60,7 @@ class Library:
             with open(DATA_FILE, "w", encoding="utf-8") as f:
                 json.dump([b.to_dict() for b in self.books], f, ensure_ascii=False, indent=2)
         except OSError:
-            print("❌ Ошибка сохранения.")
+            print(f"{RED}❌ Ошибка сохранения файла.{RESET}")
 
     def load(self):
         if not os.path.exists(DATA_FILE):
@@ -50,123 +70,151 @@ class Library:
                 data = json.load(f)
                 self.books = [Book.from_dict(b) for b in data]
         except (json.JSONDecodeError, OSError):
-            print("⚠ Ошибка загрузки, начинаем с пустой библиотеки.")
+            print(f"{RED}⚠ Ошибка загрузки, начинаем с пустой библиотеки.{RESET}")
 
     def add_book(self):
-        print("\n➕ Добавление книги")
-        title = input("Название: ").strip()
-        author = input("Автор: ").strip()
+        clear()
+        print(f"{MAGENTA}{BOLD}➕ ДОБАВЛЕНИЕ КНИГИ{RESET}\n")
+        title = input(f"{CYAN}Название:{RESET} ").strip()
+        author = input(f"{CYAN}Автор:{RESET} ").strip()
         try:
-            year = int(input("Год: ").strip())
+            year = int(input(f"{CYAN}Год:{RESET} ").strip())
         except ValueError:
-            print("❌ Год должен быть числом.")
+            print(f"{RED}❌ Год должен быть числом.{RESET}")
+            input("Нажми Enter...")
             return
         if not title or not author:
-            print("❌ Название и автор не могут быть пустыми.")
+            print(f"{RED}❌ Название и автор не могут быть пустыми.{RESET}")
+            input("Нажми Enter...")
             return
 
         self.books.append(Book(title, author, year))
         self.save()
-        print(f"✅ Книга «{title}» добавлена!")
+        print(f"{GREEN}✅ Книга «{title}» успешно добавлена!{RESET}")
+        input("Нажми Enter...")
 
     def show_all(self):
+        clear()
+        print(f"{CYAN}{BOLD}📚 ВСЕ КНИГИ{RESET}")
+        print(f"{CYAN}{'─' * 50}{RESET}")
         if not self.books:
-            print("📭 Библиотека пуста.")
-            return
-        print(f"\n📚 В библиотеке {len(self.books)} книг(и):")
-        for i, book in enumerate(self.books, 1):
-            print(f"{i}. ", end="")
-            book.show()
+            print(f"{DIM}  Библиотека пуста...{RESET}")
+        else:
+            for i, book in enumerate(self.books, 1):
+                book.show(i)
+        print(f"{CYAN}{'─' * 50}{RESET}")
+        input(f"\n{DIM}Нажми Enter чтобы вернуться...{RESET}")
 
     def search(self):
-        if not self.books:
-            print("📭 Библиотека пуста.")
-            return
-        query = input("🔍 Поиск (название или автор): ").strip().lower()
+        clear()
+        print(f"{MAGENTA}{BOLD}🔍 ПОИСК{RESET}\n")
+        query = input(f"{CYAN}Введи название или автора:{RESET} ").strip().lower()
         if not query:
             return
-
         found = [b for b in self.books if query in b.title.lower() or query in b.author.lower()]
+        
+        print(f"\n{CYAN}{'─' * 50}{RESET}")
         if not found:
-            print(f"❌ Ничего не найдено по запросу «{query}».")
-            return
-        print(f"\n🔍 Найдено {len(found)}:")
-        for i, book in enumerate(found, 1):
-            print(f"{i}. ", end="")
-            book.show()
+            print(f"{RED}❌ Ничего не найдено по запросу «{query}».{RESET}")
+        else:
+            print(f"{GREEN}🔍 Найдено {len(found)}:{RESET}")
+            for i, book in enumerate(found, 1):
+                book.show(i)
+        print(f"{CYAN}{'─' * 50}{RESET}")
+        input(f"\n{DIM}Нажми Enter чтобы вернуться...{RESET}")
 
     def mark_read(self):
+        clear()
         if not self.books:
-            print("📭 Библиотека пуста.")
+            print(f"{DIM}Библиотека пуста...{RESET}")
+            input("Нажми Enter...")
             return
-        self.show_all()
+        print(f"{MAGENTA}{BOLD}✅ ОТМЕТИТЬ ПРОЧИТАННОЙ{RESET}\n")
+        for i, book in enumerate(self.books, 1):
+            book.show(i)
+        
         try:
-            idx = int(input("\nНомер книги: ").strip()) - 1
+            idx = int(input(f"\n{CYAN}Номер книги:{RESET} ").strip()) - 1
             if 0 <= idx < len(self.books):
                 self.books[idx].is_read = not self.books[idx].is_read
                 self.save()
-                status = "прочитана" if self.books[idx].is_read else "не прочитана"
-                print(f"✅ Книга «{self.books[idx].title}» отмечена как {status}.")
+                status = f"{GREEN}прочитана{RESET}" if self.books[idx].is_read else f"{YELLOW}не прочитана{RESET}"
+                print(f"{GREEN}✅ Книга «{self.books[idx].title}» отмечена как {status}.{RESET}")
             else:
-                print("❌ Неверный номер.")
+                print(f"{RED}❌ Неверный номер.{RESET}")
         except ValueError:
-            print("❌ Введи число.")
+            print(f"{RED}❌ Введи число.{RESET}")
+        input("Нажми Enter...")
 
     def delete_book(self):
+        clear()
         if not self.books:
-            print("📭 Библиотека пуста.")
+            print(f"{DIM}Библиотека пуста...{RESET}")
+            input("Нажми Enter...")
             return
-        self.show_all()
+        print(f"{MAGENTA}{BOLD}🗑 УДАЛЕНИЕ КНИГИ{RESET}\n")
+        for i, book in enumerate(self.books, 1):
+            book.show(i)
+        
         try:
-            idx = int(input("\nНомер книги для удаления: ").strip()) - 1
+            idx = int(input(f"\n{CYAN}Номер книги для удаления:{RESET} ").strip()) - 1
             if 0 <= idx < len(self.books):
                 removed = self.books.pop(idx)
                 self.save()
-                print(f"🗑 Книга «{removed.title}» удалена.")
+                print(f"{GREEN}🗑 Книга «{removed.title}» удалена.{RESET}")
             else:
-                print("❌ Неверный номер.")
+                print(f"{RED}❌ Неверный номер.{RESET}")
         except ValueError:
-            print("❌ Введи число.")
+            print(f"{RED}❌ Введи число.{RESET}")
+        input("Нажми Enter...")
 
     def stats(self):
+        clear()
+        print(f"{MAGENTA}{BOLD}📊 СТАТИСТИКА{RESET}")
+        print(f"{CYAN}{'─' * 50}{RESET}")
         if not self.books:
-            print("📭 Библиотека пуста.")
-            return
-        read = sum(1 for b in self.books if b.is_read)
-        years = [b.year for b in self.books]
-        avg_year = sum(years) / len(years)
-        oldest = min(self.books, key=lambda b: b.year)
-        newest = max(self.books, key=lambda b: b.year)
-        print("\n📊 Статистика:")
-        print(f"  Всего книг:     {len(self.books)}")
-        print(f"  Прочитано:      {read}")
-        print(f"  Не прочитано:   {len(self.books) - read}")
-        print(f"  Средний год:    {avg_year:.0f}")
-        print(f"  Самая старая:   «{oldest.title}» ({oldest.year})")
-        print(f"  Самая новая:    «{newest.title}» ({newest.year})")
+            print(f"{DIM}  Нет данных для статистики...{RESET}")
+        else:
+            read = sum(1 for b in self.books if b.is_read)
+            years = [b.year for b in self.books]
+            avg_year = sum(years) / len(years)
+            oldest = min(self.books, key=lambda b: b.year)
+            newest = max(self.books, key=lambda b: b.year)
+
+            print(f"  Всего книг:     {BOLD}{len(self.books)}{RESET}")
+            print(f"  Прочитано:      {GREEN}{read}{RESET}")
+            print(f"  Не прочитано:   {YELLOW}{len(self.books) - read}{RESET}")
+            print(f"  Средний год:    {BLUE}{avg_year:.0f}{RESET}")
+            print(f"  Самая старая:   {BOLD}«{oldest.title}»{RESET} ({oldest.year})")
+            print(f"  Самая новая:    {BOLD}«{newest.title}»{RESET} ({newest.year})")
+        print(f"{CYAN}{'─' * 50}{RESET}")
+        input(f"\n{DIM}Нажми Enter чтобы вернуться...{RESET}")
 
 
-def show_menu():
-    print("\n" + "=" * 40)
-    print("📚 БИБЛИОТЕКА")
-    print("=" * 40)
-    print("1. Показать все книги")
-    print("2. Добавить книгу")
-    print("3. Поиск")
-    print("4. Отметить прочитанной")
-    print("5. Удалить книгу")
-    print("6. Статистика")
-    print("7. Выход")
-    print("=" * 40)
+# ===== Интерфейс =====
+def show_menu(lib):
+    clear()
+    print(f"{CYAN}{BOLD}╔{'═' * 46}╗{RESET}")
+    print(f"{CYAN}║{RESET} {MAGENTA}{BOLD}📚 МОЯ БИБЛИОТЕКА{RESET}{' ' * 27}{CYAN}║{RESET}")
+    print(f"{CYAN}╠{'═' * 46}╣{RESET}")
+    print(f"{CYAN}║{RESET}  {GREEN}1.{RESET} Показать все книги{' ' * 23}{CYAN}║{RESET}")
+    print(f"{CYAN}║{RESET}  {GREEN}2.{RESET} Добавить книгу{' ' * 27}{CYAN}║{RESET}")
+    print(f"{CYAN}║{RESET}  {GREEN}3.{RESET} Поиск{' ' * 35}{CYAN}║{RESET}")
+    print(f"{CYAN}║{RESET}  {GREEN}4.{RESET} Отметить прочитанной{' ' * 19}{CYAN}║{RESET}")
+    print(f"{CYAN}║{RESET}  {GREEN}5.{RESET} Удалить книгу{' ' * 27}{CYAN}║{RESET}")
+    print(f"{CYAN}║{RESET}  {GREEN}6.{RESET} Статистика{' ' * 30}{CYAN}║{RESET}")
+    print(f"{CYAN}╠{'═' * 46}╣{RESET}")
+    print(f"{CYAN}║{RESET}  {RED}0.{RESET} Выход{' ' * 36}{CYAN}║{RESET}")
+    print(f"{CYAN}╚{'═' * 46}╝{RESET}")
+    print(f"{DIM}  Всего в базе: {len(lib.books)} книг{RESET}")
 
 
 def main():
     lib = Library()
-    print(f"📂 Загружено книг: {len(lib.books)}")
-
+    
     while True:
-        show_menu()
-        choice = input("> ").strip()
+        show_menu(lib)
+        choice = input(f"\n{CYAN}Твой выбор > {RESET}").strip()
 
         if choice == "1":
             lib.show_all()
@@ -180,12 +228,13 @@ def main():
             lib.delete_book()
         elif choice == "6":
             lib.stats()
-        elif choice == "7":
-            lib.save()
-            print("👋 До свидания!")
+        elif choice == "0":
+            clear()
+            print(f"{GREEN}👋 До свидания! Твои книги сохранены.{RESET}\n")
             break
         else:
-            print("❌ Неизвестная команда.")
+            print(f"{RED}❌ Неизвестная команда.{RESET}")
+            input("Нажми Enter...")
 
 
 if __name__ == "__main__":
