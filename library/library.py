@@ -1,4 +1,4 @@
-# Библиотека — v7: Экспорт в CSV и TXT
+# Библиотека — v8: Сортировка и фильтры
 
 import json
 import os
@@ -90,8 +90,46 @@ class Library:
         print(f"{CYAN}{'─' * 55}{RESET}")
         if not self.books:
             print(f"{DIM}  Пусто...{RESET}")
+            print(f"{CYAN}{'─' * 55}{RESET}")
+            input(f"\n{DIM}Enter...{RESET}")
+            return
+
+        print(f"{DIM}Сортировать:{RESET}  {GREEN}1{RESET}=по названию  {GREEN}2{RESET}=по автору  "
+              f"{GREEN}3{RESET}=по году  {GREEN}4{RESET}=по рейтингу  {GREEN}0{RESET}=без сорт.")
+        print(f"{DIM}Фильтр:{RESET}      {GREEN}5{RESET}=только прочитанные  {GREEN}6{RESET}=только непрочитанные  "
+              f"{GREEN}7{RESET}=только с оценкой")
+        print(f"{CYAN}{'─' * 55}{RESET}")
+        
+        sort_choice = input(f"{CYAN}Сортировка (0-4, Enter=0):{RESET} ").strip() or "0"
+        filter_choice = input(f"{CYAN}Фильтр (0-7, Enter=0):{RESET} ").strip() or "0"
+        
+        books = self.books[:]
+
+        # Фильтр
+        if filter_choice == "5":
+            books = [b for b in books if b.is_read]
+        elif filter_choice == "6":
+            books = [b for b in books if not b.is_read]
+        elif filter_choice == "7":
+            books = [b for b in books if b.rating > 0]
+
+        # Сортировка
+        if sort_choice == "1":
+            books.sort(key=lambda b: b.title.lower())
+        elif sort_choice == "2":
+            books.sort(key=lambda b: b.author.lower())
+        elif sort_choice == "3":
+            books.sort(key=lambda b: b.year)
+        elif sort_choice == "4":
+            books.sort(key=lambda b: b.rating, reverse=True)
+
+        clear()
+        print(f"{CYAN}{BOLD}📚 КНИГИ (найдено: {len(books)}){RESET}")
+        print(f"{CYAN}{'─' * 55}{RESET}")
+        if not books:
+            print(f"{DIM}  Нет книг по заданным фильтрам...{RESET}")
         else:
-            for i, b in enumerate(self.books, 1): b.show(i)
+            for i, b in enumerate(books, 1): b.show(i)
         print(f"{CYAN}{'─' * 55}{RESET}")
         input(f"\n{DIM}Enter...{RESET}")
 
@@ -182,33 +220,29 @@ class Library:
 
     def export_csv(self):
         clear()
-        print(f"{MAGENTA}{BOLD}📤 ЭКСПОРТ В CSV{RESET}\n")
+        print(f"{MAGENTA}{BOLD}📤 CSV{RESET}\n")
         if not self.books:
-            print(f"{DIM}Нечего экспортировать.{RESET}"); input("Enter..."); return
+            print(f"{DIM}Нечего.{RESET}"); input("Enter..."); return
         try:
             with open(EXPORT_CSV, "w", encoding="utf-8", newline="") as f:
-                writer = csv.writer(f, delimiter=";")
-                writer.writerow(["Название", "Автор", "Год", "Прочитана", "Рейтинг"])
+                w = csv.writer(f, delimiter=";")
+                w.writerow(["Название", "Автор", "Год", "Прочитана", "Рейтинг"])
                 for b in self.books:
-                    writer.writerow([b.title, b.author, b.year,
-                                     "Да" if b.is_read else "Нет", b.rating])
-            print(f"{GREEN}✅ Экспортировано в:{RESET}")
-            print(f"  {EXPORT_CSV}")
-            print(f"  Книг: {len(self.books)}")
-        except OSError as e:
-            print(f"{RED}❌ Ошибка: {e}{RESET}")
+                    w.writerow([b.title, b.author, b.year, "Да" if b.is_read else "Нет", b.rating])
+            print(f"{GREEN}✅ Экспортировано в:\n  {EXPORT_CSV}{RESET}")
+        except OSError as e: print(f"{RED}❌ {e}{RESET}")
         input("\nEnter...")
 
     def export_txt(self):
         clear()
-        print(f"{MAGENTA}{BOLD}📤 ЭКСПОРТ В TXT{RESET}\n")
+        print(f"{MAGENTA}{BOLD}📤 TXT{RESET}\n")
         if not self.books:
-            print(f"{DIM}Нечего экспортировать.{RESET}"); input("Enter..."); return
+            print(f"{DIM}Нечего.{RESET}"); input("Enter..."); return
         try:
             with open(EXPORT_TXT, "w", encoding="utf-8") as f:
                 f.write("=" * 60 + "\n")
                 f.write("МОЯ БИБЛИОТЕКА\n")
-                f.write(f"Дата экспорта: {datetime.now().strftime('%d.%m.%Y %H:%M')}\n")
+                f.write(f"Дата: {datetime.now().strftime('%d.%m.%Y %H:%M')}\n")
                 f.write(f"Всего книг: {len(self.books)}\n")
                 f.write("=" * 60 + "\n\n")
                 for i, b in enumerate(self.books, 1):
@@ -219,10 +253,8 @@ class Library:
                 read = sum(1 for b in self.books if b.is_read)
                 f.write("=" * 60 + "\n")
                 f.write(f"Итого прочитано: {read} из {len(self.books)}\n")
-            print(f"{GREEN}✅ Экспортировано в:{RESET}")
-            print(f"  {EXPORT_TXT}")
-        except OSError as e:
-            print(f"{RED}❌ Ошибка: {e}{RESET}")
+            print(f"{GREEN}✅ Экспортировано в:\n  {EXPORT_TXT}{RESET}")
+        except OSError as e: print(f"{RED}❌ {e}{RESET}")
         input("\nEnter...")
 
     def export_menu(self):
@@ -230,8 +262,8 @@ class Library:
             clear()
             print(f"{MAGENTA}{BOLD}📤 ЭКСПОРТ{RESET}")
             print(f"{CYAN}{'─' * 40}{RESET}")
-            print(f"  {GREEN}1.{RESET} Экспорт в CSV (для Excel)")
-            print(f"  {GREEN}2.{RESET} Экспорт в TXT (отчёт)")
+            print(f"  {GREEN}1.{RESET} CSV (для Excel)")
+            print(f"  {GREEN}2.{RESET} TXT (отчёт)")
             print(f"  {RED}0.{RESET} Назад")
             print(f"{CYAN}{'─' * 40}{RESET}")
             choice = input(f"\n{CYAN}Выбор:{RESET} ").strip()
