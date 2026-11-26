@@ -5,126 +5,64 @@ import random
 W, H = 600, 800
 FPS = 60
 
-BG_TOP = (20, 80, 140)
-BG_BOT = (5, 15, 40)
-FISH_COLORS = [(255, 100, 100), (255, 200, 100), (100, 255, 200), (200, 100, 255), (255, 150, 200)]
-BUBBLE = (150, 200, 255)
-TREASURE = (255, 215, 0)
-LIGHT_RAY = (100, 200, 255)
+BG_DARK = (20, 10, 20)
+BG_DAWN = (80, 40, 30)
+EGG = (240, 220, 180)
+CRACK = (80, 40, 20)
+FIRE = [(255, 80, 0), (255, 150, 50), (255, 220, 100), (255, 100, 50)]
+PHOENIX = (255, 100, 50)
+PHOENIX_DARK = (200, 50, 20)
+TEXT = (255, 220, 120)
 
 
-class Fish:
-    def __init__(self):
-        self.x = random.uniform(-100, W + 100)
-        self.y = random.uniform(150, H - 150)
-        self.speed = random.uniform(20, 60) * random.choice([-1, 1])
-        self.color = random.choice(FISH_COLORS)
-        self.size = random.randint(15, 30)
-        self.wobble = random.uniform(0, 6.28)
-        self.tail_phase = random.uniform(0, 6.28)
-
-    def update(self, dt):
-        self.x += self.speed * dt
-        self.wobble += dt * 3
-        self.tail_phase += dt * 8
-        self.y += math.sin(self.wobble) * 15 * dt
-
-        if self.x < -100:
-            self.x = W + 100
-            self.y = random.uniform(150, H - 150)
-        elif self.x > W + 100:
-            self.x = -100
-            self.y = random.uniform(150, H - 150)
-
-    def draw(self, screen):
-        f = 1 if self.speed > 0 else -1
-        tail_wag = math.sin(self.tail_phase) * 0.3
-
-        # Хвост
-        tail_x = self.x - f * self.size * 1.5
-        tail_pts = [
-            (self.x - f * self.size, self.y),
-            (tail_x + f * self.size * 0.3 * tail_wag, self.y - self.size * 0.6),
-            (tail_x + f * self.size * 0.3 * tail_wag, self.y + self.size * 0.6),
-        ]
-        pygame.draw.polygon(screen, self.color, tail_pts)
-
-        # Тело
-        pygame.draw.ellipse(screen, self.color,
-                            (self.x - self.size, self.y - self.size * 0.5, self.size * 2, self.size))
-
-        # Глаз
-        eye_x = self.x + f * self.size * 0.6
-        pygame.draw.circle(screen, (255, 255, 255), (int(eye_x), int(self.y - 3)), 5)
-        pygame.draw.circle(screen, (0, 0, 0), (int(eye_x + f*2), int(self.y - 3)), 2)
-
-
-class Jellyfish:
-    def __init__(self):
-        self.x = random.uniform(0, W)
-        self.y = random.uniform(-100, H)
-        self.speed = random.uniform(15, 30)
-        self.size = random.randint(20, 40)
-        self.pulse = random.uniform(0, 6.28)
-        self.color = random.choice([(200, 100, 255), (255, 100, 200), (150, 100, 255)])
+class Spark:
+    def __init__(self, x, y, spread=100, upward=True):
+        self.x = x
+        self.y = y
+        angle = random.uniform(0, 6.28) if not upward else random.uniform(-2.5, -0.5)
+        speed = random.uniform(50, spread)
+        self.vx = math.cos(angle) * speed
+        self.vy = math.sin(angle) * speed
+        self.life = random.uniform(0.5, 1.5)
+        self.age = 0
+        self.color = random.choice(FIRE)
+        self.size = random.randint(2, 5)
 
     def update(self, dt):
-        self.y -= self.speed * dt
-        self.pulse += dt * 2
-        if self.y < -80:
-            self.y = H + 80
-            self.x = random.uniform(0, W)
+        self.age += dt
+        self.x += self.vx * dt
+        self.y += self.vy * dt
+        self.vy += 80 * dt
+        self.vx *= 0.98
 
     def draw(self, screen):
-        s = self.size + math.sin(self.pulse) * 5
-        alpha = int(80 + 40 * math.sin(self.pulse))
-        col = (*self.color, alpha)
-        surf = pygame.Surface((int(s*2), int(s*2)), pygame.SRCALPHA)
-        pygame.draw.ellipse(surf, col, (0, s, s*2, s*0.8))
-        for i in range(5):
-            tx = s + (i - 2) * s * 0.4
-            ty = s + s * 0.7
-            pygame.draw.line(surf, col, (tx, ty), (tx, ty + s * 1.2), 3)
-        screen.blit(surf, (self.x - s, self.y - s))
+        if self.age < self.life:
+            alpha = 1 - self.age / self.life
+            col = (
+                int(min(255, self.color[0] * alpha + 50)),
+                int(self.color[1] * alpha),
+                int(self.color[2] * alpha)
+            )
+            pygame.draw.circle(screen, col, (int(self.x), int(self.y)), self.size)
 
-
-class Bubble:
-    def __init__(self):
-        self.x = random.randint(0, W)
-        self.y = H + random.randint(0, 200)
-        self.speed = random.uniform(30, 80)
-        self.size = random.randint(3, 10)
-        self.wobble = random.uniform(0, 6.28)
-
-    def update(self, dt):
-        self.y -= self.speed * dt
-        self.wobble += dt * 2
-        self.x += math.sin(self.wobble) * 30 * dt
-        if self.y < -20:
-            self.y = H + 20
-            self.x = random.randint(0, W)
-
-    def draw(self, screen):
-        pygame.draw.circle(screen, BUBBLE, (int(self.x), int(self.y)), self.size, 2)
-        # Блик
-        pygame.draw.circle(screen, (255, 255, 255), (int(self.x - self.size*0.3), int(self.y - self.size*0.3)), 2)
+    def done(self):
+        return self.age >= self.life
 
 
 class Game:
     def __init__(self):
         pygame.init()
         self.screen = pygame.display.set_mode((W, H))
-        pygame.display.set_caption("Подводный Мир")
+        pygame.display.set_caption("Огненный Феникс")
         self.clock = pygame.time.Clock()
 
-        self.bubbles = [Bubble() for _ in range(40)]
-        self.fishes = [Fish() for _ in range(10)]
-        self.jellyfish = [Jellyfish() for _ in range(4)]
-        self.state = "normal"
+        self.state = "egg"
         self.t = 0
         self.time = 0
-        self.font_big = pygame.font.SysFont("Arial", 36, bold=True)
-        self.font = pygame.font.SysFont("Arial", 20)
+        self.sparks = []
+        self.cracks = 0
+        self.font_big = pygame.font.SysFont("Arial", 42, bold=True)
+        self.font = pygame.font.SysFont("Arial", 22)
 
     def run(self):
         while True:
@@ -136,68 +74,154 @@ class Game:
                 if e.type == pygame.QUIT:
                     pygame.quit(); return
                 if e.type == pygame.KEYDOWN:
-                    if e.key == pygame.K_SPACE and self.state == "normal":
-                        self.state = "treasure"
-                        self.t = 0
+                    if e.key == pygame.K_SPACE:
+                        if self.state == "egg":
+                            self.state = "hatching"
+                            self.t = 0
+                        elif self.state == "hatching":
+                            self.cracks += 1
+                            for _ in range(20):
+                                self.sparks.append(Spark(W//2, H//2 + 50, 150))
+                            if self.cracks >= 3:
+                                self.state = "flying"
+                                self.t = 0
+                                for _ in range(80):
+                                    self.sparks.append(Spark(W//2, H//2, 250))
                     if e.key == pygame.K_r:
                         self.__init__()
 
-            if self.state == "treasure" and self.t > 6:
-                self.state = "normal"
-                self.t = 0
+            if self.state == "hatching":
+                # Искры от яйца
+                if random.random() < 0.3:
+                    self.sparks.append(Spark(W//2 + random.uniform(-60, 60), H//2 + 50, 80, upward=True))
+                if self.t > 4:
+                    self.state = "flying"
+                    self.t = 0
 
-            for b in self.bubbles: b.update(dt)
-            for f in self.fishes: f.update(dt)
-            for j in self.jellyfish: j.update(dt)
+            if self.state == "flying":
+                # След феникса
+                for _ in range(4):
+                    self.sparks.append(Spark(
+                        W//2 + random.uniform(-40, 40),
+                        H//2 + math.sin(self.t * 3) * 20 + random.uniform(-20, 20),
+                        50, upward=True
+                    ))
+
+            for s in self.sparks: s.update(dt)
+            self.sparks = [s for s in self.sparks if not s.done()]
 
             self.draw()
             pygame.display.flip()
 
     def draw(self):
-        # Градиент
-        for y in range(H):
-            t = y / H
-            col = (
-                int(BG_TOP[0] * (1-t) + BG_BOT[0] * t),
-                int(BG_TOP[1] * (1-t) + BG_BOT[1] * t),
-                int(BG_TOP[2] * (1-t) + BG_BOT[2] * t),
-            )
-            pygame.draw.line(self.screen, col, (0, y), (W, y))
-
-        # Световые лучи
-        for i in range(5):
-            x = 100 + i * 100 + math.sin(self.time + i) * 30
-            alpha = 20 + 15 * math.sin(self.time * 1.5 + i)
-            surf = pygame.Surface((80, H), pygame.SRCALPHA)
-            pygame.draw.polygon(surf, (*LIGHT_RAY, int(alpha)), [(0, 0), (80, 0), (50, H), (30, H)])
-            self.screen.blit(surf, (x, 0))
-
-        # Волны сверху
-        for i in range(W):
-            wave_y = 20 + math.sin(self.time * 2 + i * 0.05) * 10
-            pygame.draw.circle(self.screen, (100, 200, 255), (i, int(wave_y)), 1)
-
-        for b in self.bubbles: b.draw(self.screen)
-        for j in self.jellyfish: j.draw(self.screen)
-        for f in self.fishes: f.draw(self.screen)
-
-        # Сундук
-        if self.state == "treasure":
-            pulse = 0.5 + 0.5 * math.sin(self.t * 5)
-            glow_r = int(100 + pulse * 60)
-            glow = pygame.Surface((glow_r*2, glow_r*2), pygame.SRCALPHA)
-            pygame.draw.circle(glow, (*TREASURE, 100), (glow_r, glow_r), glow_r)
-            self.screen.blit(glow, (W//2 - glow_r, H - 220 - glow_r))
-
-            pygame.draw.rect(self.screen, (120, 60, 20), (W//2 - 70, H - 220, 140, 90))
-            pygame.draw.rect(self.screen, TREASURE, (W//2 - 70, H - 220, 140, 15))
-            pygame.draw.rect(self.screen, (80, 40, 10), (W//2 - 70, H - 220, 140, 90), 3)
-
-            surf = self.font_big.render("С ДНЁМ РОЖДЕНИЯ!", True, TREASURE)
-            self.screen.blit(surf, (W//2 - surf.get_width()//2, 100))
+        # Фон меняется
+        if self.state == "flying":
+            progress = min(1.0, self.t / 4)
+            bg = tuple(int(BG_DARK[i] * (1-progress) + BG_DAWN[i] * progress) for i in range(3))
         else:
-            surf = self.font.render("Нажми ПРОБЕЛ, чтобы найти клад", True, (150, 200, 255))
-            self.screen.blit(surf, (W//2 - surf.get_width()//2, 100))
+            bg = BG_DARK
+
+        self.screen.fill(bg)
+
+        # Искры (рисуются за яйцом)
+        for s in self.sparks:
+            s.draw(self.screen)
+
+        # Яйцо
+        if self.state in ("egg", "hatching"):
+            egg_y = H//2 + 100
+            pulse = 1 + 0.05 * math.sin(self.time * 4) if self.state == "hatching" else 1
+            ew, eh = int(160 * pulse), int(200 * pulse)
+
+            # Свечение
+            glow = pygame.Surface((ew*2, eh*2), pygame.SRCALPHA)
+            pygame.draw.ellipse(glow, (255, 150, 50, 60), (0, 0, ew*2, eh*2))
+            self.screen.blit(glow, (W//2 - ew, egg_y - eh))
+
+            pygame.draw.ellipse(self.screen, EGG, (W//2 - ew//2, egg_y - eh, ew, eh))
+
+            # Трещины
+            for i in range(self.cracks):
+                start_x = W//2 - 40 + i * 30
+                start_y = egg_y - 80
+                for j in range(5):
+                    x1 = start_x + random.randint(-8, 8) + j * 8
+                    y1 = start_y + j * 25
+                    x2 = x1 + random.randint(-15, 15)
+                    y2 = y1 + 25
+                    pygame.draw.line(self.screen, CRACK, (x1, y1), (x2, y2), 3)
+
+            if self.state == "egg":
+                pulse_t = 0.5 + 0.5 * math.sin(self.time * 2)
+                surf = self.font.render("Нажми ПРОБЕЛ, чтобы разбить яйцо", True, (200, 200, 200))
+                self.screen.blit(surf, (W//2 - surf.get_width()//2, 100))
+            else:
+                surf = self.font.render(f"Трещина {self.cracks}/3 — ЖМИ!", True, (255, 200, 100))
+                self.screen.blit(surf, (W//2 - surf.get_width()//2, 100))
+
+        # Феникс
+        if self.state == "flying":
+            float_y = H//2 + math.sin(self.t * 3) * 30
+            wing_angle = math.sin(self.t * 8) * 0.5
+
+            # Огненное свечение
+            glow_r = 150
+            glow = pygame.Surface((glow_r*2, glow_r*2), pygame.SRCALPHA)
+            pygame.draw.circle(glow, (255, 150, 50, 80), (glow_r, glow_r), glow_r)
+            self.screen.blit(glow, (W//2 - glow_r, int(float_y) - glow_r))
+
+            # Левое крыло
+            left_wing = [
+                (W//2 - 20, float_y),
+                (W//2 - 120, float_y - 60 + wing_angle * 30),
+                (W//2 - 140, float_y + 20 + wing_angle * 30),
+                (W//2 - 80, float_y + 40),
+            ]
+            pygame.draw.polygon(self.screen, PHOENIX_DARK, left_wing)
+            pygame.draw.polygon(self.screen, PHOENIX, [
+                (W//2 - 20, float_y),
+                (W//2 - 100, float_y - 40 + wing_angle * 25),
+                (W//2 - 110, float_y + 10 + wing_angle * 25),
+                (W//2 - 70, float_y + 30),
+            ])
+
+            # Правое крыло
+            right_wing = [
+                (W//2 + 20, float_y),
+                (W//2 + 120, float_y - 60 + wing_angle * 30),
+                (W//2 + 140, float_y + 20 + wing_angle * 30),
+                (W//2 + 80, float_y + 40),
+            ]
+            pygame.draw.polygon(self.screen, PHOENIX_DARK, right_wing)
+            pygame.draw.polygon(self.screen, PHOENIX, [
+                (W//2 + 20, float_y),
+                (W//2 + 100, float_y - 40 + wing_angle * 25),
+                (W//2 + 110, float_y + 10 + wing_angle * 25),
+                (W//2 + 70, float_y + 30),
+            ])
+
+            # Тело
+            pygame.draw.ellipse(self.screen, PHOENIX, (W//2 - 30, float_y - 40, 60, 80))
+
+            # Голова
+            pygame.draw.circle(self.screen, PHOENIX, (W//2, int(float_y - 50)), 20)
+
+            # Глаза
+            pygame.draw.circle(self.screen, (255, 255, 100), (W//2 - 8, int(float_y - 55)), 4)
+            pygame.draw.circle(self.screen, (255, 255, 100), (W//2 + 8, int(float_y - 55)), 4)
+
+            # Хвост
+            tail_swing = math.sin(self.t * 4) * 20
+            pygame.draw.polygon(self.screen, PHOENIX_DARK, [
+                (W//2 - 20, float_y + 40),
+                (W//2 - 40 + tail_swing, float_y + 150),
+                (W//2, float_y + 130),
+                (W//2 + 40 + tail_swing, float_y + 150),
+                (W//2 + 20, float_y + 40),
+            ])
+
+            surf = self.font_big.render("С ДНЁМ РОЖДЕНИЯ!", True, TEXT)
+            self.screen.blit(surf, (W//2 - surf.get_width()//2, 80))
 
 
 if __name__ == "__main__":
